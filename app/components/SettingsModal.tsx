@@ -5,6 +5,7 @@ import {
 	Kbd,
 	SegmentedControl,
 	Text,
+	Tooltip,
 } from '@radix-ui/themes';
 import { useEffect, useState } from 'react';
 import { VscCheck, VscSettingsGear } from 'react-icons/vsc';
@@ -36,11 +37,13 @@ export function SettingsModal({
 
 	return (
 		<Dialog.Root open={open} onOpenChange={setOpen}>
-			<Dialog.Trigger>
-				<IconButton variant="ghost" aria-label="Settings">
-					<VscSettingsGear aria-hidden="true" />
-				</IconButton>
-			</Dialog.Trigger>
+			<Tooltip content="Settings">
+				<Dialog.Trigger>
+					<IconButton variant="ghost" aria-label="Settings">
+						<VscSettingsGear aria-hidden="true" />
+					</IconButton>
+				</Dialog.Trigger>
+			</Tooltip>
 
 			<Dialog.Content maxWidth="450px">
 				<Dialog.Title>Settings</Dialog.Title>
@@ -54,6 +57,7 @@ export function SettingsModal({
 						<SegmentedControl.Root
 							value={theme}
 							onValueChange={(v) => setTheme(v as typeof theme)}
+							className="w-full"
 						>
 							<SegmentedControl.Item value="light">
 								Light
@@ -77,6 +81,7 @@ export function SettingsModal({
 							onValueChange={(v) =>
 								setLocalDiffStyle(v as DiffStyle)
 							}
+							className="w-full"
 						>
 							<SegmentedControl.Item value="split">
 								Split View
@@ -97,6 +102,7 @@ export function SettingsModal({
 							onValueChange={(v) =>
 								setDensity(v as typeof density)
 							}
+							className="w-full"
 						>
 							<SegmentedControl.Item value="normal">
 								Normal

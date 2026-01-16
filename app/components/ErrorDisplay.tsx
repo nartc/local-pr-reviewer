@@ -1,4 +1,4 @@
-import { Button, Callout, IconButton, Text } from '@radix-ui/themes';
+import { Button, Callout, IconButton, Text, Tooltip } from '@radix-ui/themes';
 import {
 	VscClose,
 	VscError,
@@ -67,14 +67,16 @@ export function ErrorDisplay({
 						)}
 					</div>
 					{onDismiss && (
-						<IconButton
-							variant="ghost"
-							size="1"
-							onClick={onDismiss}
-							aria-label="Dismiss"
-						>
-							<VscClose aria-hidden="true" />
-						</IconButton>
+						<Tooltip content="Dismiss">
+							<IconButton
+								variant="ghost"
+								size="1"
+								onClick={onDismiss}
+								aria-label="Dismiss"
+							>
+								<VscClose aria-hidden="true" />
+							</IconButton>
+						</Tooltip>
 					)}
 				</div>
 			</Callout.Text>
@@ -115,14 +117,16 @@ export function ErrorToast({ message, onDismiss }: ErrorToastProps) {
 				</Callout.Icon>
 				<Callout.Text className="flex items-center gap-2">
 					<Text size="2">{message}</Text>
-					<IconButton
-						variant="ghost"
-						size="1"
-						onClick={onDismiss}
-						aria-label="Dismiss"
-					>
-						<VscClose aria-hidden="true" />
-					</IconButton>
+					<Tooltip content="Dismiss">
+						<IconButton
+							variant="ghost"
+							size="1"
+							onClick={onDismiss}
+							aria-label="Dismiss"
+						>
+							<VscClose aria-hidden="true" />
+						</IconButton>
+					</Tooltip>
 				</Callout.Text>
 			</Callout.Root>
 		</div>

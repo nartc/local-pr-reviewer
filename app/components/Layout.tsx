@@ -1,7 +1,6 @@
-import { DropdownMenu, IconButton, Text } from '@radix-ui/themes';
+import { IconButton, Text, Tooltip } from '@radix-ui/themes';
 import { useState, type ReactNode } from 'react';
-import { VscChevronLeft, VscChevronRight, VscSettings } from 'react-icons/vsc';
-import { useTheme } from '../lib/theme.js';
+import { VscChevronLeft, VscChevronRight } from 'react-icons/vsc';
 import { GlobalLoadingBar } from './GlobalLoadingBar.js';
 
 interface LayoutProps {
@@ -32,10 +31,7 @@ export function Layout({
 					</Text>
 					{header}
 				</div>
-				<div className="flex items-center gap-2">
-					{headerActions}
-					<SettingsMenu />
-				</div>
+				<div className="flex items-center gap-2">{headerActions}</div>
 			</header>
 
 			{/* Small screen message */}
@@ -57,24 +53,32 @@ export function Layout({
 						}`}
 					>
 						{/* Collapse toggle */}
-						<IconButton
-							variant="ghost"
-							size="1"
-							onClick={() => setLeftCollapsed(!leftCollapsed)}
-							className="!w-full !rounded-none h-8"
-							aria-label={
+						<Tooltip
+							content={
 								leftCollapsed
-									? 'Expand file explorer'
-									: 'Collapse file explorer'
+									? 'Expand files'
+									: 'Collapse files'
 							}
-							aria-expanded={!leftCollapsed}
 						>
-							{leftCollapsed ? (
-								<VscChevronRight aria-hidden="true" />
-							) : (
-								<VscChevronLeft aria-hidden="true" />
-							)}
-						</IconButton>
+							<IconButton
+								variant="ghost"
+								size="1"
+								onClick={() => setLeftCollapsed(!leftCollapsed)}
+								className="!w-full !rounded-none h-8"
+								aria-label={
+									leftCollapsed
+										? 'Expand file explorer'
+										: 'Collapse file explorer'
+								}
+								aria-expanded={!leftCollapsed}
+							>
+								{leftCollapsed ? (
+									<VscChevronRight aria-hidden="true" />
+								) : (
+									<VscChevronLeft aria-hidden="true" />
+								)}
+							</IconButton>
+						</Tooltip>
 						{/* Sidebar content */}
 						<div
 							className={`flex-1 overflow-y-auto ${leftCollapsed ? 'hidden' : ''}`}
@@ -101,62 +105,14 @@ export function Layout({
 	);
 }
 
-function SettingsMenu() {
-	const { theme, setTheme, density, setDensity } = useTheme();
-
-	return (
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger>
-				<IconButton variant="ghost" aria-label="Settings">
-					<VscSettings />
-				</IconButton>
-			</DropdownMenu.Trigger>
-
-			<DropdownMenu.Content align="end" sideOffset={5}>
-				<DropdownMenu.Label>Theme</DropdownMenu.Label>
-				<DropdownMenu.RadioGroup
-					value={theme}
-					onValueChange={(v) => setTheme(v as typeof theme)}
-				>
-					<DropdownMenu.RadioItem value="light">
-						Light
-					</DropdownMenu.RadioItem>
-					<DropdownMenu.RadioItem value="dark">
-						Dark
-					</DropdownMenu.RadioItem>
-					<DropdownMenu.RadioItem value="system">
-						System
-					</DropdownMenu.RadioItem>
-				</DropdownMenu.RadioGroup>
-
-				<DropdownMenu.Separator />
-
-				<DropdownMenu.Label>Density</DropdownMenu.Label>
-				<DropdownMenu.RadioGroup
-					value={density}
-					onValueChange={(v) => setDensity(v as typeof density)}
-				>
-					<DropdownMenu.RadioItem value="normal">
-						Normal
-					</DropdownMenu.RadioItem>
-					<DropdownMenu.RadioItem value="compact">
-						Compact
-					</DropdownMenu.RadioItem>
-				</DropdownMenu.RadioGroup>
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
-	);
-}
-
 // Simple layout without sidebars for landing page
 export function SimpleLayout({ children }: { children: ReactNode }) {
 	return (
 		<div className="h-screen flex flex-col bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-			<header className="h-12 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 shrink-0">
+			<header className="h-12 border-b border-gray-200 dark:border-gray-800 flex items-center px-4 shrink-0">
 				<Text size="4" weight="bold">
 					PR Reviewer
 				</Text>
-				<SettingsMenu />
 			</header>
 			<main className="flex-1 overflow-auto">{children}</main>
 		</div>

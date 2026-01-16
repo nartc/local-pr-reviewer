@@ -1,4 +1,4 @@
-import { Button, IconButton, Text, TextArea } from '@radix-ui/themes';
+import { Button, IconButton, Text, TextArea, Tooltip } from '@radix-ui/themes';
 import { useRef, useState } from 'react';
 import {
 	VscCheck,
@@ -83,35 +83,41 @@ export function CommentCard({
 				</div>
 				<div className="flex items-center gap-1 shrink-0">
 					{showSendButton && onSendNow && (
-						<IconButton
-							size="1"
-							variant="ghost"
-							onClick={() => onSendNow(comment)}
-							aria-label="Send now"
-						>
-							<VscSend aria-hidden="true" />
-						</IconButton>
+						<Tooltip content="Send now">
+							<IconButton
+								size="1"
+								variant="ghost"
+								onClick={() => onSendNow(comment)}
+								aria-label="Send now"
+							>
+								<VscSend aria-hidden="true" />
+							</IconButton>
+						</Tooltip>
 					)}
-					{!isEditing && (
+					{!isEditing && !showSentAt && (
 						<>
-							<IconButton
-								size="1"
-								variant="ghost"
-								onClick={() => setIsEditing(true)}
-								aria-label="Edit comment"
-							>
-								<VscEdit aria-hidden="true" />
-							</IconButton>
-							<IconButton
-								size="1"
-								variant="ghost"
-								color="red"
-								onClick={handleDelete}
-								aria-label="Delete comment"
-								disabled={isDeleting}
-							>
-								<VscTrash aria-hidden="true" />
-							</IconButton>
+							<Tooltip content="Edit">
+								<IconButton
+									size="1"
+									variant="ghost"
+									onClick={() => setIsEditing(true)}
+									aria-label="Edit comment"
+								>
+									<VscEdit aria-hidden="true" />
+								</IconButton>
+							</Tooltip>
+							<Tooltip content="Delete">
+								<IconButton
+									size="1"
+									variant="ghost"
+									color="red"
+									onClick={handleDelete}
+									aria-label="Delete comment"
+									disabled={isDeleting}
+								>
+									<VscTrash aria-hidden="true" />
+								</IconButton>
+							</Tooltip>
 						</>
 					)}
 				</div>
@@ -129,24 +135,28 @@ export function CommentCard({
 						aria-label="Edit comment text"
 					/>
 					<div className="flex justify-end gap-1">
-						<IconButton
-							size="1"
-							variant="ghost"
-							onClick={handleCancel}
-							aria-label="Cancel editing"
-						>
-							<VscClose aria-hidden="true" />
-						</IconButton>
-						<IconButton
-							size="1"
-							variant="ghost"
-							color="green"
-							onClick={handleSave}
-							aria-label="Save changes"
-							disabled={isUpdating}
-						>
-							<VscCheck aria-hidden="true" />
-						</IconButton>
+						<Tooltip content="Cancel">
+							<IconButton
+								size="1"
+								variant="ghost"
+								onClick={handleCancel}
+								aria-label="Cancel editing"
+							>
+								<VscClose aria-hidden="true" />
+							</IconButton>
+						</Tooltip>
+						<Tooltip content="Save">
+							<IconButton
+								size="1"
+								variant="ghost"
+								color="green"
+								onClick={handleSave}
+								aria-label="Save changes"
+								disabled={isUpdating}
+							>
+								<VscCheck aria-hidden="true" />
+							</IconButton>
+						</Tooltip>
 					</div>
 				</div>
 			) : (

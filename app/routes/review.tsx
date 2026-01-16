@@ -134,7 +134,7 @@ export default function Review() {
 	const handleSendNowFromDiff = async (
 		content: string,
 		filePath: string,
-		lineStart: number,
+		lineStart?: number,
 		lineEnd?: number,
 	) => {
 		if (!selectedTmuxSession) {
@@ -144,11 +144,14 @@ export default function Review() {
 
 		try {
 			// Format the comment with file/line context
-			const lineInfo =
-				lineEnd && lineEnd !== lineStart
+			const lineInfo = lineStart
+				? lineEnd && lineEnd !== lineStart
 					? `Lines ${lineStart}-${lineEnd}`
-					: `Line ${lineStart}`;
-			const formattedContent = `[${filePath} ${lineInfo}]\n${content}`;
+					: `Line ${lineStart}`
+				: null;
+			const formattedContent = lineInfo
+				? `[${filePath} ${lineInfo}]\n${content}`
+				: `[${filePath}]\n${content}`;
 
 			const params = new URLSearchParams({
 				intent: 'sendRaw',
@@ -156,8 +159,8 @@ export default function Review() {
 				content: formattedContent,
 				sessionId: session.id,
 				filePath,
-				lineStart: lineStart.toString(),
 			});
+			if (lineStart) params.append('lineStart', lineStart.toString());
 			if (lineEnd) params.append('lineEnd', lineEnd.toString());
 
 			await fetch('/api/send', {

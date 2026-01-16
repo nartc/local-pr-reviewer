@@ -7,7 +7,15 @@ import type {
 	Hunk,
 	ParsedPatch,
 } from '@pierre/diffs';
-import { Badge, Button, DropdownMenu, Spinner, Text } from '@radix-ui/themes';
+import {
+	Badge,
+	Button,
+	DropdownMenu,
+	IconButton,
+	Spinner,
+	Text,
+	Tooltip,
+} from '@radix-ui/themes';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
 	VscAdd,
@@ -66,9 +74,10 @@ interface SelectedLineRange {
 
 interface CommentFormData {
 	filePath: string;
-	lineStart: number;
+	lineStart?: number;
 	lineEnd?: number;
 	side: AnnotationSide;
+	isFileComment?: boolean;
 }
 
 interface DiffViewerProps {
@@ -81,7 +90,7 @@ interface DiffViewerProps {
 	onSendNow?: (
 		content: string,
 		filePath: string,
-		lineStart: number,
+		lineStart?: number,
 		lineEnd?: number,
 	) => void;
 }
@@ -211,16 +220,13 @@ function DiffViewerClient({
 		[],
 	);
 
-	const handleFileComment = useCallback(
-		(filePath: string, firstLineNumber: number) => {
-			setCommentForm({
-				filePath,
-				lineStart: firstLineNumber,
-				side: 'additions',
-			});
-		},
-		[],
-	);
+	const handleFileComment = useCallback((filePath: string) => {
+		setCommentForm({
+			filePath,
+			side: 'additions',
+			isFileComment: true,
+		});
+	}, []);
 
 	const handleHunkComment = useCallback(
 		(filePath: string, hunk: Hunk, _hunkIndex: number) => {
@@ -285,22 +291,26 @@ function DiffViewerClient({
 						selectedLines.get(filePath) || null;
 					const isCommentingOnThisFile =
 						commentForm?.filePath === filePath;
+					const isFileComment =
+						isCommentingOnThisFile && commentForm?.isFileComment;
 
-					const lineAnnotations = isCommentingOnThisFile
-						? [
-								{
-									side: commentForm.side,
-									lineNumber:
-										commentForm.lineEnd ||
-										commentForm.lineStart,
-									metadata: {
-										type: 'comment-form' as const,
-										lineStart: commentForm.lineStart,
-										lineEnd: commentForm.lineEnd,
+					// Only create line annotations for non-file comments
+					const lineAnnotations =
+						isCommentingOnThisFile && !isFileComment
+							? [
+									{
+										side: commentForm.side,
+										lineNumber:
+											commentForm.lineEnd ||
+											commentForm.lineStart,
+										metadata: {
+											type: 'comment-form' as const,
+											lineStart: commentForm.lineStart,
+											lineEnd: commentForm.lineEnd,
+										},
 									},
-								},
-							]
-						: [];
+								]
+							: [];
 
 					return (
 						<div
@@ -311,13 +321,30 @@ function DiffViewerClient({
 						>
 							<StickyFileHeader
 								fileDiff={fileDiff}
-								onAddComment={(firstLine) =>
-									handleFileComment(filePath, firstLine)
-								}
+								onAddComment={() => handleFileComment(filePath)}
 								onAddHunkComment={(hunk, hunkIndex) =>
 									handleHunkComment(filePath, hunk, hunkIndex)
 								}
 							/>
+							{/* File-level comment form - appears at top */}
+							{isFileComment && (
+								<InlineCommentForm
+									sessionId={sessionId}
+									filePath={filePath}
+									onClose={handleCloseComment}
+									onSendNow={
+										onSendNow
+											? (content) => {
+													onSendNow(
+														content,
+														filePath,
+													);
+													handleCloseComment();
+												}
+											: undefined
+									}
+								/>
+							)}
 							<FileDiff
 								fileDiff={fileDiff}
 								selectedLines={fileSelectedLines}
@@ -339,18 +366,21 @@ function DiffViewerClient({
 										| HoveredLineResult
 										| undefined,
 								) => (
-									<button
-										onClick={() =>
-											handleAddComment(
-												filePath,
-												getHoveredLine,
-											)
-										}
-										className="flex items-center justify-center w-5 h-5 rounded bg-blue-500 hover:bg-blue-600 text-white shadow-sm"
-										title="Add comment"
-									>
-										<VscAdd className="w-3 h-3" />
-									</button>
+									<Tooltip content="Add comment">
+										<IconButton
+											size="1"
+											variant="solid"
+											aria-label="Add comment"
+											onClick={() =>
+												handleAddComment(
+													filePath,
+													getHoveredLine,
+												)
+											}
+										>
+											<VscAdd className="w-3 h-3" />
+										</IconButton>
+									</Tooltip>
 								)}
 								renderAnnotation={(annotation: {
 									side: AnnotationSide;
@@ -398,7 +428,7 @@ function DiffViewerClient({
 
 interface StickyFileHeaderProps {
 	fileDiff: FileDiffMetadata;
-	onAddComment: (firstLineNumber: number) => void;
+	onAddComment: () => void;
 	onAddHunkComment: (hunk: Hunk, hunkIndex: number) => void;
 }
 
@@ -479,12 +509,14 @@ function StickyFileHeader({
 			<div className="relative flex items-center gap-2">
 				{hunks.length > 0 && (
 					<DropdownMenu.Root>
-						<DropdownMenu.Trigger>
-							<Button variant="ghost" size="1">
-								<VscComment aria-hidden="true" />
-								Hunk ({hunks.length})
-							</Button>
-						</DropdownMenu.Trigger>
+						<Tooltip content="Comment on a hunk">
+							<DropdownMenu.Trigger>
+								<Button variant="ghost" size="1">
+									<VscComment aria-hidden="true" />
+									Hunk ({hunks.length})
+								</Button>
+							</DropdownMenu.Trigger>
+						</Tooltip>
 						<DropdownMenu.Content align="end">
 							{hunks.map((hunk, index) => (
 								<DropdownMenu.Item
@@ -499,20 +531,12 @@ function StickyFileHeader({
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
 				)}
-				<Button
-					variant="ghost"
-					size="1"
-					onClick={() => {
-						const firstHunk = hunks[0];
-						const firstLine = firstHunk
-							? getActualChangedLineRange(firstHunk).start
-							: 1;
-						onAddComment(firstLine);
-					}}
-				>
-					<VscComment aria-hidden="true" />
-					File
-				</Button>
+				<Tooltip content="Comment on entire file">
+					<Button variant="ghost" size="1" onClick={onAddComment}>
+						<VscComment aria-hidden="true" />
+						File
+					</Button>
+				</Tooltip>
 			</div>
 		</div>
 	);

@@ -1,4 +1,11 @@
-import { Button, IconButton, Kbd, Text, TextArea } from '@radix-ui/themes';
+import {
+	Button,
+	IconButton,
+	Kbd,
+	Text,
+	TextArea,
+	Tooltip,
+} from '@radix-ui/themes';
 import { useState } from 'react';
 import { VscClose } from 'react-icons/vsc';
 import { useAsyncAction } from '../lib/use-async-action';
@@ -6,7 +13,7 @@ import { useAsyncAction } from '../lib/use-async-action';
 interface InlineCommentFormProps {
 	sessionId: string;
 	filePath: string;
-	lineStart: number;
+	lineStart?: number;
 	lineEnd?: number;
 	side?: 'old' | 'new' | 'both';
 	onClose: () => void;
@@ -39,7 +46,7 @@ export function InlineCommentForm({
 		formData.append('sessionId', sessionId);
 		formData.append('filePath', filePath);
 		formData.append('content', content);
-		formData.append('lineStart', lineStart.toString());
+		if (lineStart) formData.append('lineStart', lineStart.toString());
 		if (lineEnd) formData.append('lineEnd', lineEnd.toString());
 		if (side) formData.append('side', side);
 
@@ -67,10 +74,11 @@ export function InlineCommentForm({
 		}
 	};
 
-	const lineInfo =
-		lineEnd && lineEnd !== lineStart
+	const lineInfo = lineStart
+		? lineEnd && lineEnd !== lineStart
 			? `Lines ${lineStart}-${lineEnd}`
-			: `Line ${lineStart}`;
+			: `Line ${lineStart}`
+		: 'File comment';
 
 	return (
 		<div
@@ -82,14 +90,16 @@ export function InlineCommentForm({
 				<Text size="1" color="gray">
 					{lineInfo}
 				</Text>
-				<IconButton
-					size="1"
-					variant="ghost"
-					onClick={onClose}
-					aria-label="Close comment form"
-				>
-					<VscClose aria-hidden="true" />
-				</IconButton>
+				<Tooltip content="Close">
+					<IconButton
+						size="1"
+						variant="ghost"
+						onClick={onClose}
+						aria-label="Close comment form"
+					>
+						<VscClose aria-hidden="true" />
+					</IconButton>
+				</Tooltip>
 			</div>
 
 			{/* Textarea */}

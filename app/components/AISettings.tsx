@@ -6,6 +6,7 @@ import {
 	Select,
 	Spinner,
 	Text,
+	Tooltip,
 } from '@radix-ui/themes';
 import { useEffect, useState } from 'react';
 import { VscCheck, VscSettings } from 'react-icons/vsc';
@@ -87,11 +88,13 @@ export function AISettings({ onSettingsChange }: AISettingsProps) {
 
 	return (
 		<Dialog.Root open={open} onOpenChange={setOpen}>
-			<Dialog.Trigger>
-				<IconButton variant="ghost" aria-label="AI Settings">
-					<VscSettings aria-hidden="true" />
-				</IconButton>
-			</Dialog.Trigger>
+			<Tooltip content="AI Settings">
+				<Dialog.Trigger>
+					<IconButton variant="ghost" aria-label="AI Settings">
+						<VscSettings aria-hidden="true" />
+					</IconButton>
+				</Dialog.Trigger>
+			</Tooltip>
 
 			<Dialog.Content maxWidth="400px">
 				<Dialog.Title>AI Settings</Dialog.Title>

@@ -198,6 +198,7 @@ export function FileExplorer({
 						style={{ paddingLeft: `${depth * 12 + 8}px` }}
 						role="treeitem"
 						aria-expanded={isExpanded}
+						title={node.path}
 					>
 						{isExpanded ? (
 							<VscChevronDown
@@ -270,6 +271,7 @@ export function FileExplorer({
 									}}
 									role="treeitem"
 									aria-selected={selectedFile === file.path}
+									title={file.path}
 								>
 									<StatusIcon
 										className={`w-3 h-3 shrink-0 ${colorClass}`}
