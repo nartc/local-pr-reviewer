@@ -1,23 +1,23 @@
-import { reactRouter } from "@react-router/dev/vite";
-import tailwindcss from "@tailwindcss/vite";
-import { defineConfig } from "vite";
-import tsconfigPaths from "vite-tsconfig-paths";
+import { reactRouter } from '@react-router/dev/vite';
+import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig(({ isSsrBuild }) => ({
-  build: {
-    rollupOptions: isSsrBuild
-      ? {
-          input: "./server/app.ts",
-        }
-      : undefined,
-  },
-  plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
-  ssr: {
-    // Externalize @pierre/diffs to avoid SSR issues with lru_map
-    noExternal: [],
-    external: ["@pierre/diffs"],
-  },
-  optimizeDeps: {
-    include: ["lru_map"],
-  },
+	build: {
+		rollupOptions: isSsrBuild
+			? {
+					input: './server/app.ts',
+				}
+			: undefined,
+	},
+	plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
+	ssr: {
+		// Externalize @pierre/diffs to avoid SSR issues with lru_map
+		noExternal: [],
+		external: ['@pierre/diffs'],
+	},
+	optimizeDeps: {
+		include: ['lru_map'],
+	},
 }));
