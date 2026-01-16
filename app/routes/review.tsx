@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { VscArrowLeft } from 'react-icons/vsc';
 import { Link, useLoaderData, useRevalidator } from 'react-router';
 import { BaseBranchSelector } from '../components/BaseBranchSelector';
@@ -44,14 +44,22 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 	// Get the base branch (session override or repo default)
 	const baseBranch = session.base_branch || repo.base_branch;
 
-	// Get diff
+	// Get diff - use Promise.all to parallelize independent git operations
 	const git = createGitService();
 	let files: DiffFile[] = [];
 	let rawDiff = '';
+	let currentBranch = '';
 
 	try {
-		const diffSummary = await git.getDiffSummary(repoPath, baseBranch);
-		rawDiff = await git.getDiff(repoPath, baseBranch);
+		// Parallelize independent git operations
+		const [diffSummary, diffContent, branch] = await Promise.all([
+			git.getDiffSummary(repoPath, baseBranch),
+			git.getDiff(repoPath, baseBranch),
+			git.getCurrentBranch(repoPath),
+		]);
+
+		rawDiff = diffContent;
+		currentBranch = branch;
 
 		files = diffSummary.files.map((file) => {
 			const isBinary = !('insertions' in file);
@@ -70,9 +78,10 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 		});
 	} catch (error) {
 		console.error('Failed to get diff:', error);
+		currentBranch = await git
+			.getCurrentBranch(repoPath)
+			.catch(() => 'unknown');
 	}
-
-	const currentBranch = await git.getCurrentBranch(repoPath);
 
 	// Get comments
 	const queuedComments = commentService.getQueuedComments(sessionId);
@@ -113,67 +122,73 @@ export default function Review() {
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>('split');
 	const revalidator = useRevalidator();
 
-	const handleSendNow = async (comment: Comment) => {
-		if (!selectedTmuxSession) return;
+	const handleSendNow = useCallback(
+		async (comment: Comment) => {
+			if (!selectedTmuxSession) return;
 
-		try {
-			await fetch('/api/send', {
-				method: 'POST',
-				body: new URLSearchParams({
-					intent: 'sendOne',
+			try {
+				await fetch('/api/send', {
+					method: 'POST',
+					body: new URLSearchParams({
+						intent: 'sendOne',
+						sessionName: selectedTmuxSession,
+						commentId: comment.id,
+					}),
+				});
+				revalidator.revalidate();
+			} catch (error) {
+				console.error('Failed to send comment:', error);
+			}
+		},
+		[selectedTmuxSession, revalidator],
+	);
+
+	const handleSendNowFromDiff = useCallback(
+		async (
+			content: string,
+			filePath: string,
+			lineStart?: number,
+			lineEnd?: number,
+		) => {
+			if (!selectedTmuxSession) {
+				alert('Please select a tmux session first');
+				return;
+			}
+
+			try {
+				// Format the comment with file/line context
+				const lineInfo = lineStart
+					? lineEnd && lineEnd !== lineStart
+						? `Lines ${lineStart}-${lineEnd}`
+						: `Line ${lineStart}`
+					: null;
+				const formattedContent = lineInfo
+					? `[${filePath} ${lineInfo}]\n${content}`
+					: `[${filePath}]\n${content}`;
+
+				const params = new URLSearchParams({
+					intent: 'sendRaw',
 					sessionName: selectedTmuxSession,
-					commentId: comment.id,
-				}),
-			});
-			revalidator.revalidate();
-		} catch (error) {
-			console.error('Failed to send comment:', error);
-		}
-	};
+					content: formattedContent,
+					sessionId: session.id,
+					filePath,
+				});
+				if (lineStart) params.append('lineStart', lineStart.toString());
+				if (lineEnd) params.append('lineEnd', lineEnd.toString());
 
-	const handleSendNowFromDiff = async (
-		content: string,
-		filePath: string,
-		lineStart?: number,
-		lineEnd?: number,
-	) => {
-		if (!selectedTmuxSession) {
-			alert('Please select a tmux session first');
-			return;
-		}
+				await fetch('/api/send', {
+					method: 'POST',
+					body: params,
+				});
+				revalidator.revalidate();
+			} catch (error) {
+				console.error('Failed to send comment:', error);
+			}
+		},
+		[selectedTmuxSession, session.id, revalidator],
+	);
 
-		try {
-			// Format the comment with file/line context
-			const lineInfo = lineStart
-				? lineEnd && lineEnd !== lineStart
-					? `Lines ${lineStart}-${lineEnd}`
-					: `Line ${lineStart}`
-				: null;
-			const formattedContent = lineInfo
-				? `[${filePath} ${lineInfo}]\n${content}`
-				: `[${filePath}]\n${content}`;
-
-			const params = new URLSearchParams({
-				intent: 'sendRaw',
-				sessionName: selectedTmuxSession,
-				content: formattedContent,
-				sessionId: session.id,
-				filePath,
-			});
-			if (lineStart) params.append('lineStart', lineStart.toString());
-			if (lineEnd) params.append('lineEnd', lineEnd.toString());
-
-			await fetch('/api/send', {
-				method: 'POST',
-				body: params,
-			});
-			revalidator.revalidate();
-		} catch (error) {
-			console.error('Failed to send comment:', error);
-		}
-	};
-
-	const handleSendAllStaged = async () => {
+	const handleSendAllStaged = useCallback(async () => {
 		if (!selectedTmuxSession || stagedComments.length === 0) return;
 
 		try {
@@ -190,7 +205,15 @@ export default function Review() {
 		} catch (error) {
 			console.error('Failed to send comments:', error);
 		}
-	};
+	}, [selectedTmuxSession, stagedComments, revalidator]);
+
+	const handleSelectTmuxSession = useCallback((sessionName: string) => {
+		setSelectedTmuxSession(sessionName);
+	}, []);
+
+	const handleBranchChange = useCallback(() => {
+		revalidator.revalidate();
+	}, [revalidator]);
 
 	const header = (
 		<div className="flex items-center gap-4 text-sm">
@@ -210,7 +233,7 @@ export default function Review() {
 					currentBaseBranch={baseBranch}
 					repoId={repo.id}
 					sessionId={session.id}
-					onBranchChange={() => revalidator.revalidate()}
+					onBranchChange={handleBranchChange}
 				/>
 			</div>
 		</div>
@@ -235,7 +258,7 @@ export default function Review() {
 			stagedComments={stagedComments}
 			sentComments={sentComments}
 			selectedTmuxSession={selectedTmuxSession}
-			onSelectTmuxSession={setSelectedTmuxSession}
+			onSelectTmuxSession={handleSelectTmuxSession}
 			onSendNow={handleSendNow}
 			onSendAllStaged={handleSendAllStaged}
 			repoPath={repoPath}

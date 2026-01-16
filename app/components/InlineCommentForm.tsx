@@ -83,7 +83,7 @@ export function InlineCommentForm({
 	return (
 		<div
 			data-comment-form
-			className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 m-2 box-border w-[calc(100%-1rem)]"
+			className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 box-border"
 		>
 			{/* Header */}
 			<div className="flex items-center justify-between mb-2">

@@ -48,10 +48,10 @@ export function SettingsModal({
 			<Dialog.Content maxWidth="450px">
 				<Dialog.Title>Settings</Dialog.Title>
 
-				<div className="space-y-6 mt-4">
+				<div className="flex flex-col gap-6 mt-4">
 					{/* Theme */}
-					<div>
-						<Text size="2" weight="medium" className="mb-3 block">
+					<div className="flex flex-col gap-3">
+						<Text size="2" weight="medium">
 							Theme
 						</Text>
 						<SegmentedControl.Root
@@ -72,8 +72,8 @@ export function SettingsModal({
 					</div>
 
 					{/* Diff Style */}
-					<div>
-						<Text size="2" weight="medium" className="mb-3 block">
+					<div className="flex flex-col gap-3">
+						<Text size="2" weight="medium">
 							Diff View
 						</Text>
 						<SegmentedControl.Root
@@ -93,8 +93,8 @@ export function SettingsModal({
 					</div>
 
 					{/* Density */}
-					<div>
-						<Text size="2" weight="medium" className="mb-3 block">
+					<div className="flex flex-col gap-3">
+						<Text size="2" weight="medium">
 							UI Density
 						</Text>
 						<SegmentedControl.Root
@@ -114,11 +114,11 @@ export function SettingsModal({
 					</div>
 
 					{/* Keyboard Shortcuts */}
-					<div>
-						<Text size="2" weight="medium" className="mb-3 block">
+					<div className="flex flex-col gap-3">
+						<Text size="2" weight="medium">
 							Keyboard Shortcuts
 						</Text>
-						<div className="space-y-2">
+						<div className="flex flex-col gap-2">
 							<div className="flex justify-between items-center">
 								<Text size="2" color="gray">
 									Close modal / Cancel

@@ -28,6 +28,33 @@ import {
 import { useTheme } from '../lib/theme.js';
 import { InlineCommentForm } from './InlineCommentForm.js';
 
+// Hoisted static loading states
+const DiffLoadingState = (
+	<div className="flex items-center justify-center h-full gap-2">
+		<Spinner size="2" />
+		<Text size="2" color="gray">
+			Loading diff viewer...
+		</Text>
+	</div>
+);
+
+const NoDiffState = (
+	<div className="flex items-center justify-center h-full">
+		<Text size="2" color="gray">
+			No changes to display
+		</Text>
+	</div>
+);
+
+const HydrationLoadingState = (
+	<div className="flex items-center justify-center h-full gap-2">
+		<Spinner size="2" />
+		<Text size="2" color="gray">
+			Loading diff...
+		</Text>
+	</div>
+);
+
 /**
  * Calculate the actual changed line range within a hunk.
  * The hunk's additionStart/additionLines includes context lines,
@@ -256,14 +283,7 @@ function DiffViewerClient({
 	}, []);
 
 	if (!DiffComponents) {
-		return (
-			<div className="flex items-center justify-center h-full gap-2">
-				<Spinner size="2" />
-				<Text size="2" color="gray">
-					Loading diff viewer...
-				</Text>
-			</div>
-		);
+		return DiffLoadingState;
 	}
 
 	const {
@@ -557,24 +577,11 @@ export function DiffViewer({
 	}, []);
 
 	if (!rawDiff) {
-		return (
-			<div className="flex items-center justify-center h-full">
-				<Text size="2" color="gray">
-					No changes to display
-				</Text>
-			</div>
-		);
+		return NoDiffState;
 	}
 
 	if (!isClient) {
-		return (
-			<div className="flex items-center justify-center h-full gap-2">
-				<Spinner size="2" />
-				<Text size="2" color="gray">
-					Loading diff...
-				</Text>
-			</div>
-		);
+		return HydrationLoadingState;
 	}
 
 	return (

@@ -195,6 +195,13 @@ export function SessionSelector({
 								: 'border-gray-300 dark:border-gray-600'
 						}`}
 						disabled={loading}
+						aria-label={
+							loading
+								? 'Loading sessions'
+								: selectedSessionData
+									? `Selected session: ${selectedSessionData.name}`
+									: 'Select a tmux session'
+						}
 					>
 						<VscTerminal
 							className="w-4 h-4 text-gray-400"

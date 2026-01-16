@@ -2,6 +2,7 @@ import {
 	createContext,
 	useContext,
 	useEffect,
+	useMemo,
 	useState,
 	type ReactNode,
 } from 'react';
@@ -87,12 +88,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 		localStorage.setItem(DENSITY_KEY, newDensity);
 	};
 
+	// Memoize context value to prevent unnecessary re-renders
+	const value = useMemo(
+		() => ({ theme, resolvedTheme, setTheme, density, setDensity }),
+		[theme, resolvedTheme, density],
+	);
+
 	return (
-		<ThemeContext.Provider
-			value={{ theme, resolvedTheme, setTheme, density, setDensity }}
-		>
-			{children}
-		</ThemeContext.Provider>
+		<ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 	);
 }
 

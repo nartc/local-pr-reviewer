@@ -3,10 +3,12 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { createGitService } from '../services/git.service';
 
-const MAX_DEPTH = parseInt(process.env.REPO_SCAN_MAX_DEPTH || '6', 10);
+// Config defaults match app/lib/config.ts
+const MAX_DEPTH = parseInt(process.env.REPO_SCAN_MAX_DEPTH || '3', 10);
 const SCAN_ROOT =
 	process.env.REPO_SCAN_ROOT?.replace('~', homedir()) ||
-	join(homedir(), 'code');
+	process.env.HOME ||
+	'/';
 
 const IGNORED_DIRS = new Set([
 	'node_modules',

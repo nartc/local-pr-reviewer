@@ -1,5 +1,5 @@
-import * as Dialog from '@radix-ui/react-dialog';
-import { useState } from 'react';
+import { Dialog } from '@radix-ui/themes';
+import { useCallback, useState } from 'react';
 import { VscAdd, VscArrowRight, VscRepo, VscTrash } from 'react-icons/vsc';
 import { Form, redirect, useFetcher, useLoaderData } from 'react-router';
 import { EmptyRepos } from '../components/EmptyStates';
@@ -75,13 +75,24 @@ export default function Home() {
 	const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 	const fetcher = useFetcher();
 
-	const handleSelectRepo = (path: string) => {
+	const handleSelectRepo = useCallback(
+		(path: string) => {
+			setIsAddModalOpen(false);
+			fetcher.submit(
+				{ intent: 'add', path },
+				{ method: 'POST', action: '/?index' },
+			);
+		},
+		[fetcher],
+	);
+
+	const handleOpenModal = useCallback(() => {
+		setIsAddModalOpen(true);
+	}, []);
+
+	const handleCloseModal = useCallback(() => {
 		setIsAddModalOpen(false);
-		fetcher.submit(
-			{ intent: 'add', path },
-			{ method: 'POST', action: '/?index' },
-		);
-	};
+	}, []);
 
 	return (
 		<SimpleLayout>
@@ -89,7 +100,7 @@ export default function Home() {
 				<div className="flex items-center justify-between mb-8">
 					<h2 className="text-2xl font-bold">Repositories</h2>
 					<button
-						onClick={() => setIsAddModalOpen(true)}
+						onClick={handleOpenModal}
 						className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
 					>
 						<VscAdd className="w-4 h-4" />
@@ -98,7 +109,7 @@ export default function Home() {
 				</div>
 
 				{repos.length === 0 ? (
-					<EmptyRepos onAddRepo={() => setIsAddModalOpen(true)} />
+					<EmptyRepos onAddRepo={handleOpenModal} />
 				) : (
 					<div className="space-y-4">
 						{repos.map((repo) => (
@@ -110,18 +121,13 @@ export default function Home() {
 
 			{/* Add Repository Modal */}
 			<Dialog.Root open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-				<Dialog.Portal>
-					<Dialog.Overlay className="fixed inset-0 bg-black/50 z-40" />
-					<Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-white dark:bg-gray-900 rounded-lg shadow-xl z-50 overflow-hidden">
-						<Dialog.Title className="text-lg font-semibold p-4 border-b border-gray-200 dark:border-gray-700">
-							Add Repository
-						</Dialog.Title>
-						<RepoPicker
-							onSelect={handleSelectRepo}
-							onCancel={() => setIsAddModalOpen(false)}
-						/>
-					</Dialog.Content>
-				</Dialog.Portal>
+				<Dialog.Content className="max-w-2xl">
+					<Dialog.Title>Add Repository</Dialog.Title>
+					<RepoPicker
+						onSelect={handleSelectRepo}
+						onCancel={handleCloseModal}
+					/>
+				</Dialog.Content>
 			</Dialog.Root>
 		</SimpleLayout>
 	);

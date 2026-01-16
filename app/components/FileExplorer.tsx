@@ -1,5 +1,5 @@
 import { Text } from '@radix-ui/themes';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
 	VscChevronDown,
 	VscChevronRight,
@@ -147,7 +147,8 @@ export function FileExplorer({
 
 	const folderTree = useMemo(() => buildFolderTree(files), [files]);
 
-	useMemo(() => {
+	// Use useEffect for expanding all folders (side effect)
+	useEffect(() => {
 		const allFolders = new Set<string>(['']);
 		function collectFolders(node: FolderNode) {
 			allFolders.add(node.path);

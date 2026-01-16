@@ -65,18 +65,18 @@ export function CommentCard({
 
 	return (
 		<div
-			className={`border border-gray-200 dark:border-gray-700 rounded-lg p-3 ${
+			className={`border border-gray-200 dark:border-gray-700 rounded-lg p-3 flex flex-col gap-2 ${
 				isDeleting ? 'opacity-50' : ''
 			}`}
 		>
 			{/* Header */}
-			<div className="flex items-center justify-between mb-2">
-				<div className="text-xs text-gray-500 truncate flex-1">
+			<div className="flex items-center justify-between">
+				<div className="text-xs text-gray-500 truncate flex-1 flex items-center gap-1">
 					<Text size="1" weight="medium">
 						{fileName}
 					</Text>
 					{lineInfo && (
-						<Text size="1" color="blue" className="ml-1">
+						<Text size="1" color="blue">
 							{lineInfo}
 						</Text>
 					)}
@@ -125,7 +125,7 @@ export function CommentCard({
 
 			{/* Content */}
 			{isEditing ? (
-				<div className="space-y-2">
+				<div className="flex flex-col gap-2">
 					<TextArea
 						value={editContent}
 						onChange={(e) => setEditContent(e.target.value)}
@@ -177,13 +177,13 @@ export function CommentCard({
 							variant="ghost"
 							size="1"
 							onClick={() => setIsExpanded(!isExpanded)}
-							className="mt-1 px-0"
+							className="px-0"
 						>
 							{isExpanded ? 'Show less' : 'Show more'}
 						</Button>
 					)}
 					{showSentAt && comment.sent_at && (
-						<Text size="1" color="gray" className="mt-2 block">
+						<Text size="1" color="gray">
 							Sent {new Date(comment.sent_at).toLocaleString()}
 						</Text>
 					)}

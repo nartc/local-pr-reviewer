@@ -77,9 +77,17 @@ export function RepoPicker({ onSelect, onCancel }: RepoPickerProps) {
 						</Text>
 					</div>
 				) : (
-					<ul className="divide-y divide-gray-200 dark:divide-gray-700">
+					<ul
+						className="divide-y divide-gray-200 dark:divide-gray-700"
+						role="listbox"
+						aria-label="Available repositories"
+					>
 						{filteredRepos.map((repo) => (
-							<li key={repo.path}>
+							<li
+								key={repo.path}
+								role="option"
+								aria-selected={false}
+							>
 								<button
 									onClick={() => onSelect(repo.path)}
 									className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
