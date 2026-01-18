@@ -10,20 +10,17 @@ import {
 } from 'react-icons/vsc';
 import { useAsyncAction } from '../lib/use-async-action';
 import type { Comment } from '../services/comment.service';
-import { CommentCard } from './CommentCard';
-import { SessionSelector } from './SessionSelector';
+import { CommentCard } from './comment-card';
 
 interface CommentQueueProps {
 	sessionId: string;
 	queuedComments: Comment[];
 	stagedComments: Comment[];
 	sentComments: Comment[];
-	selectedTmuxSession: string | null;
-	onSelectTmuxSession: (sessionName: string) => void;
+	resolvedComments: Comment[];
 	onSendNow?: (comment: Comment) => void;
 	onSendAllStaged?: () => void;
 	onProcessComments?: (commentIds: string[]) => Promise<string | null>;
-	repoPath?: string;
 }
 
 export function CommentQueue({
@@ -31,17 +28,16 @@ export function CommentQueue({
 	queuedComments,
 	stagedComments,
 	sentComments,
-	selectedTmuxSession,
-	onSelectTmuxSession,
+	resolvedComments,
 	onSendNow,
 	onSendAllStaged,
 	onProcessComments,
-	repoPath,
 }: CommentQueueProps) {
 	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 	const [queueExpanded, setQueueExpanded] = useState(true);
 	const [stagedExpanded, setStagedExpanded] = useState(true);
-	const [sentExpanded, setSentExpanded] = useState(true);
+	const [sentExpanded, setSentExpanded] = useState(false);
+	const [resolvedExpanded, setResolvedExpanded] = useState(false);
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [processedText, setProcessedText] = useState<string | null>(null);
 
@@ -101,26 +97,6 @@ export function CommentQueue({
 			{/* Panel header */}
 			<div className="panel-header">
 				<span>Comments</span>
-			</div>
-
-			{/* Session Selector */}
-			<div
-				className="p-4 border-b"
-				style={{ borderColor: 'var(--color-border)' }}
-			>
-				<Text
-					size="1"
-					weight="medium"
-					className="mb-2 block"
-					style={{ color: 'var(--color-text-secondary)' }}
-				>
-					Target Session
-				</Text>
-				<SessionSelector
-					selectedSession={selectedTmuxSession}
-					onSelectSession={onSelectTmuxSession}
-					repoPath={repoPath}
-				/>
 			</div>
 
 			{/* Queued Section */}
@@ -223,9 +199,7 @@ export function CommentQueue({
 												<CommentCard
 													comment={comment}
 													onSendNow={onSendNow}
-													showSendButton={
-														!!selectedTmuxSession
-													}
+													showSendButton
 												/>
 											</div>
 										</div>
@@ -310,22 +284,10 @@ export function CommentQueue({
 												'var(--color-success-green)',
 										}}
 										onClick={onSendAllStaged}
-										disabled={!selectedTmuxSession}
 									>
 										<VscSend aria-hidden="true" />
 										Send All ({stagedComments.length})
 									</Button>
-									{!selectedTmuxSession && (
-										<Text
-											size="1"
-											className="mt-2 text-center block"
-											style={{
-												color: 'var(--color-text-muted)',
-											}}
-										>
-											Select a session to send
-										</Text>
-									)}
 								</div>
 
 								{/* Processed text output */}
@@ -370,11 +332,10 @@ export function CommentQueue({
 			</div>
 
 			{/* Sent Section */}
-			<div className="section-accordion section-sent flex-1 overflow-y-auto">
+			<div className="section-accordion section-sent">
 				<button
 					onClick={() => setSentExpanded(!sentExpanded)}
-					className="section-accordion-header sticky top-0 z-10"
-					style={{ backgroundColor: 'var(--color-bg)' }}
+					className="section-accordion-header"
 					aria-expanded={sentExpanded}
 					aria-controls="sent-comments-section"
 				>
@@ -426,6 +387,72 @@ export function CommentQueue({
 										<CommentCard
 											comment={comment}
 											showSentAt
+										/>
+									</div>
+								))}
+							</div>
+						)}
+					</div>
+				)}
+			</div>
+
+			{/* Resolved Section */}
+			<div className="section-accordion section-resolved flex-1 overflow-y-auto">
+				<button
+					onClick={() => setResolvedExpanded(!resolvedExpanded)}
+					className="section-accordion-header sticky top-0 z-10"
+					style={{ backgroundColor: 'var(--color-bg)' }}
+					aria-expanded={resolvedExpanded}
+					aria-controls="resolved-comments-section"
+				>
+					<div className="flex items-center gap-2">
+						{resolvedExpanded ? (
+							<VscChevronDown
+								className="w-4 h-4"
+								style={{ color: 'var(--color-text-muted)' }}
+							/>
+						) : (
+							<VscChevronRight
+								className="w-4 h-4"
+								style={{ color: 'var(--color-text-muted)' }}
+							/>
+						)}
+						<Text size="2" weight="bold">
+							Resolved
+						</Text>
+						<span className="count-badge">
+							{resolvedComments.length}
+						</span>
+					</div>
+				</button>
+
+				{resolvedExpanded && (
+					<div id="resolved-comments-section" className="px-4 pb-4">
+						{resolvedComments.length === 0 ? (
+							<div className="flex flex-col items-center py-6 gap-2">
+								<Text
+									size="2"
+									style={{ color: 'var(--color-text-muted)' }}
+								>
+									No resolved comments
+								</Text>
+								<Text
+									size="1"
+									style={{ color: 'var(--color-text-muted)' }}
+								>
+									Comments resolved by agents appear here
+								</Text>
+							</div>
+						) : (
+							<div className="space-y-2 pt-2">
+								{resolvedComments.map((comment) => (
+									<div
+										key={comment.id}
+										className="opacity-50"
+									>
+										<CommentCard
+											comment={comment}
+											showResolvedAt
 										/>
 									</div>
 								))}

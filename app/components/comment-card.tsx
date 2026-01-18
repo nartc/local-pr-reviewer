@@ -16,6 +16,7 @@ interface CommentCardProps {
 	onSendNow?: (comment: Comment) => void;
 	showSendButton?: boolean;
 	showSentAt?: boolean;
+	showResolvedAt?: boolean;
 }
 
 export function CommentCard({
@@ -23,6 +24,7 @@ export function CommentCard({
 	onSendNow,
 	showSendButton = false,
 	showSentAt = false,
+	showResolvedAt = false,
 }: CommentCardProps) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [editContent, setEditContent] = useState(comment.content);
@@ -223,6 +225,22 @@ export function CommentCard({
 								style={{ color: 'var(--color-success-green)' }}
 							/>
 							Sent {new Date(comment.sent_at).toLocaleString()}
+						</Text>
+					)}
+					{showResolvedAt && comment.resolved_at && (
+						<Text
+							size="1"
+							className="flex items-center gap-1"
+							style={{ color: 'var(--color-text-muted)' }}
+						>
+							<VscCheck
+								className="w-3 h-3"
+								style={{ color: 'var(--color-success-green)' }}
+							/>
+							Resolved{' '}
+							{new Date(comment.resolved_at).toLocaleString()}
+							{comment.resolved_by &&
+								` by ${comment.resolved_by}`}
 						</Text>
 					)}
 				</>

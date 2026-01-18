@@ -29,7 +29,7 @@ import {
 	VscFile,
 } from 'react-icons/vsc';
 import { useTheme } from '../lib/theme';
-import { InlineCommentForm } from './InlineCommentForm';
+import { InlineCommentForm } from './inline-comment-form';
 
 // Hoisted static loading states
 const DiffLoadingState = (

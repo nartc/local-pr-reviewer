@@ -7,7 +7,7 @@ import {
 	type ReactNode,
 } from 'react';
 import { VscCode } from 'react-icons/vsc';
-import { GlobalLoadingBar } from './GlobalLoadingBar';
+import { GlobalLoadingBar } from './global-loading-bar';
 
 interface LayoutProps {
 	children: ReactNode;
@@ -102,7 +102,10 @@ export function Layout({
 
 	const handleLeftResize = useCallback((delta: number) => {
 		setLeftWidth((prev) => {
-			const newWidth = Math.max(MIN_LEFT, Math.min(MAX_LEFT, prev + delta));
+			const newWidth = Math.max(
+				MIN_LEFT,
+				Math.min(MAX_LEFT, prev + delta),
+			);
 			localStorage.setItem(STORAGE_KEY_LEFT, String(newWidth));
 			return newWidth;
 		});

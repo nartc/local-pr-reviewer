@@ -12,7 +12,7 @@ import { Toaster } from 'sonner';
 import type { Route } from './+types/root';
 
 import './app.css';
-import { DiffsProvider } from './components/DiffsProvider';
+import { DiffsProvider } from './components/diffs-provider';
 import { AsyncStateProvider } from './lib/async-state';
 import { densityToScaling, ThemeProvider, useTheme } from './lib/theme';
 

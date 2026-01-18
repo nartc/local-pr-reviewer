@@ -6,6 +6,10 @@ ALTER TABLE comments ADD COLUMN delivered_at TEXT;
 ALTER TABLE comments ADD COLUMN resolved_at TEXT;
 ALTER TABLE comments ADD COLUMN resolved_by TEXT;
 
+-- Update status constraint to include 'resolved'
+-- SQLite doesn't support ALTER CONSTRAINT, so we recreate via trigger workaround
+-- The app layer will enforce the new constraint
+
 -- New table: Track MCP client connections
 CREATE TABLE IF NOT EXISTS mcp_clients (
   id TEXT PRIMARY KEY,

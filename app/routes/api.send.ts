@@ -1,8 +1,6 @@
 import { Effect } from 'effect';
 import { runtime } from '../lib/effect-runtime';
 import { CommentService, type Comment } from '../services/comment.service';
-import { TmuxService } from '../services/tmux.service';
-import { TransportService } from '../services/transport.service';
 import type { Route } from './+types/api.send';
 
 export async function action({ request }: Route.ActionArgs) {
@@ -12,20 +10,16 @@ export async function action({ request }: Route.ActionArgs) {
 	return runtime.runPromise(
 		Effect.gen(function* () {
 			const comments = yield* CommentService;
-			const tmux = yield* TmuxService;
-			const transport = yield* TransportService;
 
 			switch (intent) {
-				// New MCP-based send intents
-				case 'sendToTarget': {
-					const targetId = formData.get('targetId') as string;
+				case 'send': {
 					const commentIds = formData.getAll(
 						'commentIds',
 					) as string[];
 
-					if (!targetId || commentIds.length === 0) {
+					if (commentIds.length === 0) {
 						return Response.json(
-							{ error: 'Missing required fields' },
+							{ error: 'No comments to send' },
 							{ status: 400 },
 						);
 					}
@@ -44,141 +38,13 @@ export async function action({ request }: Route.ActionArgs) {
 						);
 					}
 
-					// Mark as sent first
-					yield* comments.markAsSent(commentIds);
-
-					// Get formatted text (for clipboard or display)
-					const { formatted } = yield* transport.sendComments(
-						targetId,
-						validComments.map((c) => ({
-							id: c.id,
-							file_path: c.file_path,
-							line_start: c.line_start,
-							line_end: c.line_end,
-							content: c.content,
-						})),
-					);
-
-					return Response.json({
-						success: true,
-						count: validComments.length,
-						formatted, // Return formatted text for clipboard copy
-						isClipboard: targetId === 'clipboard',
-					});
-				}
-
-				// Legacy tmux-based intents (kept for backward compatibility)
-				case 'sendOne': {
-					const sessionName = formData.get('sessionName') as string;
-					const commentId = formData.get('commentId') as string;
-
-					if (!sessionName || !commentId) {
-						return Response.json(
-							{ error: 'Missing required fields' },
-							{ status: 400 },
-						);
-					}
-
-					const comment = yield* comments.getComment(commentId);
-					if (!comment) {
-						return Response.json(
-							{ error: 'Comment not found' },
-							{ status: 404 },
-						);
-					}
-
-					yield* tmux.sendComment(
-						sessionName,
-						comment.file_path,
-						comment.line_start,
-						comment.content,
-					);
-
-					// Mark as sent (use markAsSent to set sent_at timestamp)
-					yield* comments.markAsSent([commentId]);
-
-					return Response.json({ success: true });
-				}
-
-				case 'sendMany': {
-					const sessionName = formData.get('sessionName') as string;
-					const commentIds = formData.getAll(
-						'commentIds',
-					) as string[];
-
-					if (!sessionName || commentIds.length === 0) {
-						return Response.json(
-							{ error: 'Missing required fields' },
-							{ status: 400 },
-						);
-					}
-
-					const commentResults = yield* Effect.all(
-						commentIds.map((id) => comments.getComment(id)),
-					);
-					const validComments = commentResults.filter(
-						(c): c is Comment => c !== undefined,
-					);
-
-					if (validComments.length === 0) {
-						return Response.json(
-							{ error: 'No valid comments found' },
-							{ status: 404 },
-						);
-					}
-
-					yield* tmux.sendComments(
-						sessionName,
-						validComments.map((c) => ({
-							file_path: c.file_path,
-							line_start: c.line_start,
-							content: c.content,
-						})),
-					);
-
-					// Mark all as sent
+					// Mark as sent - MCP agents will pick these up when they poll
 					yield* comments.markAsSent(commentIds);
 
 					return Response.json({
 						success: true,
 						count: validComments.length,
 					});
-				}
-
-				case 'sendRaw': {
-					const sessionName = formData.get('sessionName') as string;
-					const content = formData.get('content') as string;
-					const reviewSessionId = formData.get('sessionId') as string;
-					const filePath = formData.get('filePath') as string;
-					const lineStart = formData.get('lineStart') as string;
-					const lineEnd = formData.get('lineEnd') as string;
-
-					if (!sessionName || !content) {
-						return Response.json(
-							{ error: 'Missing required fields' },
-							{ status: 400 },
-						);
-					}
-
-					yield* tmux.sendToSession(sessionName, content);
-
-					// If session info provided, create a comment record marked as sent
-					if (reviewSessionId && filePath) {
-						const comment = yield* comments.createComment({
-							sessionId: reviewSessionId,
-							filePath,
-							lineStart: lineStart
-								? parseInt(lineStart, 10)
-								: undefined,
-							lineEnd: lineEnd
-								? parseInt(lineEnd, 10)
-								: undefined,
-							content,
-						});
-						yield* comments.markAsSent([comment.id]);
-					}
-
-					return Response.json({ success: true });
 				}
 
 				default:

@@ -28,23 +28,6 @@ export class TargetNotFoundError extends Data.TaggedError(
 	targetId: string;
 }> {}
 
-// Legacy tmux errors (kept for compatibility during migration)
-export class TmuxError extends Data.TaggedError('TmuxError')<{
-	message: string;
-	cause?: unknown;
-}> {}
-
-export class TmuxSessionNotFoundError extends Data.TaggedError(
-	'TmuxSessionNotFoundError',
-)<{
-	session: string;
-}> {}
-
-export class TmuxSendError extends Data.TaggedError('TmuxSendError')<{
-	session: string;
-	cause?: unknown;
-}> {}
-
 // AI errors
 export class AIError extends Data.TaggedError('AIError')<{
 	message: string;

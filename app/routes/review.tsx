@@ -2,13 +2,13 @@ import { Effect } from 'effect';
 import { useCallback, useRef, useState } from 'react';
 import { VscArrowLeft } from 'react-icons/vsc';
 import { Link, useLoaderData, useRevalidator } from 'react-router';
-import { BaseBranchSelector } from '../components/BaseBranchSelector';
-import { CommentQueue } from '../components/CommentQueue';
-import { DiffViewer } from '../components/DiffViewer';
-import { EmptyDiff } from '../components/EmptyStates';
-import { FileExplorer, type DiffFile } from '../components/FileExplorer';
-import { Layout } from '../components/Layout';
-import { SettingsModal } from '../components/SettingsModal';
+import { BaseBranchSelector } from '../components/base-branch-selector';
+import { CommentQueue } from '../components/comment-queue';
+import { DiffViewer } from '../components/diff-viewer';
+import { EmptyDiff } from '../components/empty-states';
+import { FileExplorer, type DiffFile } from '../components/file-explorer';
+import { Layout } from '../components/layout';
+import { SettingsModal } from '../components/settings-modal';
 import { runtime } from '../lib/effect-runtime';
 import { CommentService, type Comment } from '../services/comment.service';
 import { GitService } from '../services/git.service';
@@ -79,13 +79,18 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 				deletions: file.deletions,
 			}));
 
-			// Get comments in parallel
-			const [queuedComments, stagedComments, sentComments] =
-				yield* Effect.all([
-					comments.getQueuedComments(sessionId),
-					comments.getStagedComments(sessionId),
-					comments.getSentComments(sessionId),
-				]);
+			// Get comments by status
+			const [
+				queuedComments,
+				stagedComments,
+				sentComments,
+				resolvedComments,
+			] = yield* Effect.all([
+				comments.getQueuedComments(sessionId),
+				comments.getStagedComments(sessionId),
+				comments.getSentComments(sessionId),
+				comments.getResolvedComments(sessionId),
+			]);
 
 			return {
 				session,
@@ -98,6 +103,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 				queuedComments,
 				stagedComments,
 				sentComments,
+				resolvedComments,
 			};
 		}),
 	);
@@ -115,11 +121,9 @@ export default function Review() {
 		queuedComments,
 		stagedComments,
 		sentComments,
+		resolvedComments,
 	} = useLoaderData<typeof loader>();
 	const [selectedFile, setSelectedFile] = useState<string | null>(null);
-	const [selectedTmuxSession, setSelectedTmuxSession] = useState<
-		string | null
-	>(null);
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>('split');
 	const revalidator = useRevalidator();
 
@@ -134,23 +138,21 @@ export default function Review() {
 
 	const handleSendNow = useCallback(
 		async (comment: Comment) => {
-			if (!selectedTmuxSession) return;
-
 			try {
+				const formData = new URLSearchParams();
+				formData.append('intent', 'send');
+				formData.append('commentIds', comment.id);
+
 				await fetch('/api/send', {
 					method: 'POST',
-					body: new URLSearchParams({
-						intent: 'sendOne',
-						sessionName: selectedTmuxSession,
-						commentId: comment.id,
-					}),
+					body: formData,
 				});
 				revalidator.revalidate();
 			} catch (error) {
 				console.error('Failed to send comment:', error);
 			}
 		},
-		[selectedTmuxSession, revalidator],
+		[revalidator],
 	);
 
 	const handleSendNowFromDiff = useCallback(
@@ -160,51 +162,50 @@ export default function Review() {
 			lineStart?: number,
 			lineEnd?: number,
 		) => {
-			if (!selectedTmuxSession) {
-				alert('Please select a tmux session first');
-				return;
-			}
-
 			try {
-				// Format the comment with file/line context
-				const lineInfo = lineStart
-					? lineEnd && lineEnd !== lineStart
-						? `Lines ${lineStart}-${lineEnd}`
-						: `Line ${lineStart}`
-					: null;
-				const formattedContent = lineInfo
-					? `[${filePath} ${lineInfo}]\n${content}`
-					: `[${filePath}]\n${content}`;
+				// First create the comment, then send it
+				const createFormData = new URLSearchParams();
+				createFormData.append('intent', 'create');
+				createFormData.append('sessionId', session.id);
+				createFormData.append('filePath', filePath);
+				createFormData.append('content', content);
+				if (lineStart)
+					createFormData.append('lineStart', lineStart.toString());
+				if (lineEnd)
+					createFormData.append('lineEnd', lineEnd.toString());
 
-				const params = new URLSearchParams({
-					intent: 'sendRaw',
-					sessionName: selectedTmuxSession,
-					content: formattedContent,
-					sessionId: session.id,
-					filePath,
-				});
-				if (lineStart) params.append('lineStart', lineStart.toString());
-				if (lineEnd) params.append('lineEnd', lineEnd.toString());
-
-				await fetch('/api/send', {
+				const createResponse = await fetch('/api/comments', {
 					method: 'POST',
-					body: params,
+					body: createFormData,
 				});
+				const createResult = await createResponse.json();
+
+				if (createResult.comment?.id) {
+					// Now send the comment
+					const sendFormData = new URLSearchParams();
+					sendFormData.append('intent', 'send');
+					sendFormData.append('commentIds', createResult.comment.id);
+
+					await fetch('/api/send', {
+						method: 'POST',
+						body: sendFormData,
+					});
+				}
+
 				revalidator.revalidate();
 			} catch (error) {
 				console.error('Failed to send comment:', error);
 			}
 		},
-		[selectedTmuxSession, session.id, revalidator],
+		[session.id, revalidator],
 	);
 
 	const handleSendAllStaged = useCallback(async () => {
-		if (!selectedTmuxSession || stagedComments.length === 0) return;
+		if (stagedComments.length === 0) return;
 
 		try {
 			const formData = new URLSearchParams();
-			formData.append('intent', 'sendMany');
-			formData.append('sessionName', selectedTmuxSession);
+			formData.append('intent', 'send');
 			stagedComments.forEach((c) => formData.append('commentIds', c.id));
 
 			await fetch('/api/send', {
@@ -215,7 +216,7 @@ export default function Review() {
 		} catch (error) {
 			console.error('Failed to send comments:', error);
 		}
-	}, [selectedTmuxSession, stagedComments, revalidator]);
+	}, [stagedComments, revalidator]);
 
 	const handleProcessComments = useCallback(async (commentIds: string[]) => {
 		if (commentIds.length === 0) return null;
@@ -241,10 +242,6 @@ export default function Review() {
 			console.error('Failed to process comments:', error);
 			return null;
 		}
-	}, []);
-
-	const handleSelectTmuxSession = useCallback((sessionName: string) => {
-		setSelectedTmuxSession(sessionName);
 	}, []);
 
 	const handleBranchChange = useCallback(() => {
@@ -293,12 +290,10 @@ export default function Review() {
 			queuedComments={queuedComments}
 			stagedComments={stagedComments}
 			sentComments={sentComments}
-			selectedTmuxSession={selectedTmuxSession}
-			onSelectTmuxSession={handleSelectTmuxSession}
+			resolvedComments={resolvedComments}
 			onSendNow={handleSendNow}
 			onSendAllStaged={handleSendAllStaged}
 			onProcessComments={handleProcessComments}
-			repoPath={repoPath}
 		/>
 	);
 

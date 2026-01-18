@@ -8,7 +8,12 @@ import {
 import { DbService, execute, query, queryOne } from './db.service';
 
 // Types
-export type CommentStatus = 'queued' | 'staged' | 'sent' | 'cancelled';
+export type CommentStatus =
+	| 'queued'
+	| 'staged'
+	| 'sent'
+	| 'resolved'
+	| 'cancelled';
 export type CommentSide = 'old' | 'new' | 'both';
 
 export interface Comment {
@@ -22,6 +27,9 @@ export interface Comment {
 	status: CommentStatus;
 	created_at: string;
 	sent_at: string | null;
+	delivered_at: string | null;
+	resolved_at: string | null;
+	resolved_by: string | null;
 }
 
 export interface CreateCommentInput {
@@ -58,6 +66,10 @@ export interface CommentService {
 	) => Effect.Effect<Comment[], DatabaseError, DbService>;
 
 	readonly getSentComments: (
+		sessionId: string,
+	) => Effect.Effect<Comment[], DatabaseError, DbService>;
+
+	readonly getResolvedComments: (
 		sessionId: string,
 	) => Effect.Effect<Comment[], DatabaseError, DbService>;
 
@@ -103,6 +115,10 @@ export interface CommentService {
 		ids: string[],
 	) => Effect.Effect<number, DatabaseError, DbService>;
 
+	readonly markAsResolved: (
+		ids: string[],
+	) => Effect.Effect<number, DatabaseError, DbService>;
+
 	readonly getCommentCounts: (
 		sessionId: string,
 	) => Effect.Effect<Record<CommentStatus, number>, DatabaseError, DbService>;
@@ -136,6 +152,12 @@ const makeCommentService = (): CommentService => {
 			"SELECT * FROM comments WHERE session_id = ? AND status = 'sent' ORDER BY sent_at DESC",
 			[sessionId],
 		).pipe(Effect.withSpan('comment.getSentComments'));
+
+	const getResolvedComments = (sessionId: string) =>
+		query<Comment>(
+			"SELECT * FROM comments WHERE session_id = ? AND status = 'resolved' ORDER BY resolved_at DESC",
+			[sessionId],
+		).pipe(Effect.withSpan('comment.getResolvedComments'));
 
 	const getComment = (id: string) =>
 		queryOne<Comment>('SELECT * FROM comments WHERE id = ?', [id]).pipe(
@@ -279,6 +301,21 @@ const makeCommentService = (): CommentService => {
 	const cancelComments = (ids: string[]) =>
 		updateCommentsStatus(ids, 'cancelled');
 
+	const markAsResolved = (ids: string[]) =>
+		Effect.gen(function* () {
+			if (ids.length === 0) return 0;
+
+			const placeholders = ids.map(() => '?').join(', ');
+			const result = yield* execute(
+				`UPDATE comments SET status = 'resolved', resolved_at = datetime('now'), resolved_by = 'user' WHERE id IN (${placeholders})`,
+				ids,
+			);
+			yield* Effect.logInfo('Comments marked as resolved', {
+				count: result.changes,
+			});
+			return result.changes;
+		}).pipe(Effect.withSpan('comment.markAsResolved'));
+
 	const getCommentCounts = (sessionId: string) =>
 		Effect.gen(function* () {
 			const results = yield* query<{
@@ -296,6 +333,7 @@ const makeCommentService = (): CommentService => {
 				queued: 0,
 				staged: 0,
 				sent: 0,
+				resolved: 0,
 				cancelled: 0,
 			};
 
@@ -312,6 +350,7 @@ const makeCommentService = (): CommentService => {
 		getQueuedComments,
 		getStagedComments,
 		getSentComments,
+		getResolvedComments,
 		getComment,
 		createComment,
 		updateComment,
@@ -320,6 +359,7 @@ const makeCommentService = (): CommentService => {
 		stageComments,
 		markAsSent,
 		cancelComments,
+		markAsResolved,
 		getCommentCounts,
 	};
 };

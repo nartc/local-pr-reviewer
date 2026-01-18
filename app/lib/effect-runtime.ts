@@ -4,7 +4,6 @@ import { CommentServiceLive } from '../services/comment.service';
 import { DbServiceLive } from '../services/db.service';
 import { GitServiceLive } from '../services/git.service';
 import { RepoServiceLive } from '../services/repo.service';
-import { TmuxServiceLive } from '../services/tmux.service';
 import { TransportServiceLive } from '../services/transport.service';
 import { ConfigServiceLive } from './config';
 
@@ -21,7 +20,6 @@ export const AppLayer = Layer.mergeAll(
 	ConfigServiceLive,
 	DbServiceLive,
 	GitServiceLive,
-	TmuxServiceLive, // Keep for backward compatibility
 	TransportServiceLive,
 	RepoServiceLive,
 	CommentServiceLive,

@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS comments (
   line_end INTEGER,
   side TEXT CHECK(side IN ('old', 'new', 'both')),
   content TEXT NOT NULL,
-  status TEXT DEFAULT 'queued' CHECK(status IN ('queued', 'staged', 'sent', 'cancelled')),
+  status TEXT DEFAULT 'queued' CHECK(status IN ('queued', 'staged', 'sent', 'resolved', 'cancelled')),
   created_at TEXT DEFAULT (datetime('now')),
   sent_at TEXT
 );

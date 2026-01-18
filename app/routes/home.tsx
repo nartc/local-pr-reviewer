@@ -10,9 +10,9 @@ import {
 } from 'react-icons/vsc';
 import { Form, redirect, useFetcher, useLoaderData } from 'react-router';
 
-import { EmptyRepos } from '../components/EmptyStates';
-import { SimpleLayout } from '../components/Layout';
-import { RepoPicker } from '../components/RepoPicker';
+import { EmptyRepos } from '../components/empty-states';
+import { SimpleLayout } from '../components/layout';
+import { RepoPicker } from '../components/repo-picker';
 import { runtime } from '../lib/effect-runtime';
 import { RepoService, type RepoWithPath } from '../services/repo.service';
 import type { Route } from './+types/home';
@@ -184,7 +184,9 @@ function RepoCard({ repo }: { repo: RepoWithPath }) {
 				<div className="flex items-start gap-3 min-w-0 flex-1">
 					<div
 						className="p-2 rounded-lg shrink-0"
-						style={{ backgroundColor: 'var(--color-surface-hover)' }}
+						style={{
+							backgroundColor: 'var(--color-surface-hover)',
+						}}
 					>
 						<VscRepo
 							className="w-5 h-5"

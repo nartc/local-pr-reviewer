@@ -45,10 +45,10 @@ export const markResolved = (
 			return `Comment ${comment_id} is already resolved (resolved at ${comment.resolved_at})`;
 		}
 
-		// Mark as resolved
+		// Mark as resolved - update both status and resolved_at
 		yield* db.execute(
 			`UPDATE comments 
-			 SET resolved_at = datetime('now'), resolved_by = 'agent'
+			 SET status = 'resolved', resolved_at = datetime('now'), resolved_by = 'agent'
 			 WHERE id = ?`,
 			[comment_id],
 		);
