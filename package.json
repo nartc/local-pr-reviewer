@@ -1,6 +1,22 @@
 {
-	"name": "pr-reviewer",
-	"private": true,
+	"name": "tmux-pr-reviewer",
+	"version": "1.0.0",
+	"description": "Local PR review tool that sends AI-processed feedback directly to your tmux sessions",
+	"author": "Chau Tran <nartc7789@gmail.com>",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/nartc/tmux-pr-reviewer.git"
+	},
+	"keywords": [
+		"pr-review",
+		"code-review",
+		"tmux",
+		"ai",
+		"local",
+		"git",
+		"diff"
+	],
 	"type": "module",
 	"scripts": {
 		"build": "react-router build",

@@ -1,86 +1,85 @@
-# Welcome to React Router!
+# tmux-pr-reviewer
 
-A modern, production-ready template for building full-stack React applications using React Router.
+A local PR review tool that lets you review git diffs, add comments, process them with AI, and send feedback directly to your tmux sessions (e.g., Claude Code, Cursor, etc.).
 
-## Features
+## Demo
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+[![tmux-pr-reviewer demo](https://img.youtube.com/vi/-ZbH5ddwm5U/maxresdefault.jpg)](https://www.youtube.com/watch?v=-ZbH5ddwm5U)
 
-## Getting Started
+## Why?
 
-### Installation
+When reviewing PRs or working with AI coding assistants in tmux, you often want to:
 
-Install the dependencies:
+- See the full diff in a proper UI
+- Add comments on specific lines
+- Process multiple comments with AI to consolidate/improve them
+- Send feedback directly to your AI assistant's tmux session
 
-```bash
-npm install
-```
+This tool does exactly that - locally, with no external services required (except optional AI providers).
 
-### Development
+## Requirements
 
-Start the development server with HMR:
+- **Node.js** 20+
+- **pnpm** (recommended) or npm
+- **tmux** - Required for sending comments to sessions
 
-```bash
-npm run dev
-```
-
-Your application will be available at `http://localhost:5173`.
-
-## Building for Production
-
-Create a production build:
+## Installation
 
 ```bash
-npm run build
+git clone https://github.com/nartc/tmux-pr-reviewer.git
+cd tmux-pr-reviewer
+pnpm install
 ```
 
-## Deployment
+## Configuration
 
-### Docker Deployment
-
-To build and run using Docker:
+Copy the example environment file:
 
 ```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
+cp .env.example .env
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
+Edit `.env` with your settings:
 
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
+```bash
+# AI Provider API Keys (at least one required for AI features)
+GOOGLE_API_KEY=your-key-here
+OPENAI_API_KEY=your-key-here
+ANTHROPIC_API_KEY=your-key-here
 
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── server.js
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
+# Repository scanning settings
+REPO_SCAN_ROOT=~/code        # Root directory to scan for git repos
+REPO_SCAN_MAX_DEPTH=3        # How deep to scan for repos
 ```
 
-## Styling
+## Usage
 
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
+Start the development server:
 
----
+```bash
+pnpm dev
+```
 
-Built with ❤️ using React Router.
+Open http://localhost:5173
+
+### Workflow
+
+1. **Select a repository** from the scanned list
+2. **View the diff** against the base branch
+3. **Add comments** on specific lines or files
+4. **Stage comments** you want to send
+5. **Process with AI** (optional) to consolidate and improve comments
+6. **Select a tmux session** (e.g., your Claude Code session)
+7. **Send** comments directly to the session
+
+## Tech Stack
+
+- [React Router 7](https://reactrouter.com/) - Full-stack React framework
+- [Effect](https://effect.website/) - Typed functional programming
+- [Radix UI](https://www.radix-ui.com/) + [Tailwind CSS](https://tailwindcss.com/) - UI components
+- [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) - Local database
+- [Vercel AI SDK](https://sdk.vercel.ai/) - AI provider integrations
+
+## License
+
+MIT
