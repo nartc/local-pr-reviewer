@@ -7,3 +7,8 @@
 /.react-router/
 /build/
 /tmp
+
+# SQLite database files (schema.sql should be tracked)
+/db/*.db
+/db/*.db-shm
+/db/*.db-wal
