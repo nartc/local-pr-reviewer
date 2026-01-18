@@ -242,7 +242,7 @@ export function CommentQueue({
 						</span>
 					</div>
 					{stagedComments.length > 0 && (
-						<VscCheck className="w-4 h-4 text-blue-500" />
+						<VscCheck className="w-4 h-4 text-zinc-500" />
 					)}
 				</button>
 

@@ -84,7 +84,7 @@ export function BaseBranchSelector({
 								aria-checked={selectedBranch === branch}
 								className={`w-full px-3 py-2 text-left rounded flex items-center justify-between transition-colors ${
 									selectedBranch === branch
-										? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+										? 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300'
 										: 'hover:bg-gray-100 dark:hover:bg-gray-800'
 								}`}
 							>

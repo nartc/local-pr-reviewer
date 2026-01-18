@@ -491,7 +491,7 @@ function StickyFileHeader({
 				return (
 					<VscDiffModified
 						className="w-5 h-5"
-						style={{ color: 'var(--color-accent-blue)' }}
+						style={{ color: 'var(--color-accent)' }}
 					/>
 				);
 		}
@@ -566,7 +566,7 @@ function StickyFileHeader({
 				</div>
 				{getLabel(changeType)}
 			</div>
-			<div className="flex items-center gap-1">
+			<div className="flex items-center gap-2">
 				{hunks.length > 0 && (
 					<DropdownMenu.Root>
 						<Tooltip content="Comment on a hunk">

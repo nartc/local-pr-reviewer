@@ -87,7 +87,7 @@ export function CommentCard({
 						<Text
 							size="1"
 							className="shrink-0"
-							style={{ color: 'var(--color-accent-blue)' }}
+							style={{ color: 'var(--color-accent)' }}
 						>
 							{lineInfo}
 						</Text>

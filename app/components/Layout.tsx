@@ -128,7 +128,7 @@ export function Layout({
 				<div className="flex items-center gap-4">
 					{/* Logo */}
 					<div className="flex items-center gap-2">
-						<VscCode className="w-5 h-5 text-blue-500" />
+						<VscCode className="w-5 h-5 text-zinc-500" />
 						<Text size="3" weight="bold">
 							PR Reviewer
 						</Text>
@@ -205,7 +205,7 @@ export function SimpleLayout({ children }: { children: ReactNode }) {
 		<div className="h-screen flex flex-col">
 			<header className="header-floating h-12 flex items-center px-4 shrink-0 sticky top-0 z-20">
 				<div className="flex items-center gap-2">
-					<VscCode className="w-5 h-5 text-blue-500" />
+					<VscCode className="w-5 h-5 text-zinc-500" />
 					<Text size="3" weight="bold">
 						PR Reviewer
 					</Text>

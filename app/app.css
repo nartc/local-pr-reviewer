@@ -42,7 +42,7 @@
 	--color-surface-dark: #161B22;
 	--color-surface-hover-dark: #21262D;
 	--color-border-dark: #30363D;
-	--color-border-active-dark: #3B82F6;
+	--color-border-active-dark: #A1A1AA;
 	--color-text-primary-dark: #E6EDF3;
 	--color-text-secondary-dark: #8B949E;
 	--color-text-muted-dark: #656D76;
@@ -52,13 +52,13 @@
 	--color-surface-light: #F6F8FA;
 	--color-surface-hover-light: #F3F4F6;
 	--color-border-light: #D1D5DB;
-	--color-border-active-light: #3B82F6;
+	--color-border-active-light: #71717A;
 	--color-text-primary-light: #1F2937;
 	--color-text-secondary-light: #6B7280;
 	--color-text-muted-light: #9CA3AF;
 
 	/* Accent colors */
-	--color-accent-blue: #3B82F6;
+	--color-accent: #71717A;
 	--color-success-green: #22C55E;
 	--color-warning-amber: #F59E0B;
 	--color-danger-red: #EF4444;
@@ -416,9 +416,9 @@ html.dark .status-pill-renamed {
 }
 
 .tree-item-selected {
-	background-color: var(--color-accent-blue);
+	background-color: var(--color-accent);
 	background-color: rgba(59, 130, 246, 0.1);
-	border-left-color: var(--color-accent-blue);
+	border-left-color: var(--color-accent);
 }
 
 html.dark .tree-item-selected {
@@ -467,7 +467,7 @@ html.dark .tree-item-selected {
 }
 
 .section-staged {
-	border-left: 3px solid var(--color-accent-blue);
+	border-left: 3px solid var(--color-accent);
 }
 
 .section-sent {
@@ -490,7 +490,7 @@ html.dark .tree-item-selected {
 
 .resize-handle:hover,
 .resize-handle-active {
-	background-color: var(--color-accent-blue);
+	background-color: var(--color-accent);
 }
 
 /* Header with backdrop blur */
