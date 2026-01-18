@@ -12,6 +12,7 @@ import { Toaster } from 'sonner';
 import type { Route } from './+types/root';
 
 import './app.css';
+import { DiffsProvider } from './components/DiffsProvider';
 import { AsyncStateProvider } from './lib/async-state';
 import { densityToScaling, ThemeProvider, useTheme } from './lib/theme';
 
@@ -78,7 +79,9 @@ function AppContent() {
 			className="bg-transparent!"
 		>
 			<AsyncStateProvider>
-				<Outlet />
+				<DiffsProvider>
+					<Outlet />
+				</DiffsProvider>
 				<Toaster position="bottom-right" theme={resolvedTheme} />
 			</AsyncStateProvider>
 		</Theme>

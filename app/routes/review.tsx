@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { VscArrowLeft } from 'react-icons/vsc';
 import { Link, useLoaderData, useRevalidator } from 'react-router';
 import { BaseBranchSelector } from '../components/BaseBranchSelector';
@@ -122,6 +122,15 @@ export default function Review() {
 	>(null);
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>('split');
 	const revalidator = useRevalidator();
+
+	// Ref to scroll to file in virtualized diff viewer
+	const scrollToFileRef = useRef<((filePath: string) => void) | null>(null);
+
+	const handleSelectFile = useCallback((filePath: string) => {
+		setSelectedFile(filePath);
+		// Scroll to and expand the file in the diff viewer
+		scrollToFileRef.current?.(filePath);
+	}, []);
 
 	const handleSendNow = useCallback(
 		async (comment: Comment) => {
@@ -248,7 +257,7 @@ export default function Review() {
 		<FileExplorer
 			files={files}
 			selectedFile={selectedFile}
-			onSelectFile={setSelectedFile}
+			onSelectFile={handleSelectFile}
 		/>
 	);
 
@@ -286,6 +295,7 @@ export default function Review() {
 					selectedFile={selectedFile}
 					sessionId={session.id}
 					onSendNow={handleSendNowFromDiff}
+					scrollToFileRef={scrollToFileRef}
 				/>
 			)}
 		</Layout>
