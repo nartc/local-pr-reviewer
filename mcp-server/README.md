@@ -84,7 +84,7 @@ Add to `~/.config/claude/config.json`:
 	"mcpServers": {
 		"pr-reviewer": {
 			"command": "node",
-			"args": ["/path/to/pr-reviewer/dist/mcp-server/index.js"]
+			"args": ["/path/to/local-pr-reviewer/dist/mcp-server/index.js"]
 		}
 	}
 }
@@ -99,7 +99,7 @@ Add to `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_
 	"mcpServers": {
 		"pr-reviewer": {
 			"command": "node",
-			"args": ["/path/to/pr-reviewer/dist/mcp-server/index.js"]
+			"args": ["/path/to/local-pr-reviewer/dist/mcp-server/index.js"]
 		}
 	}
 }
@@ -114,7 +114,7 @@ Add to `~/.continue/config.json`:
 	"mcpServers": {
 		"pr-reviewer": {
 			"command": "node",
-			"args": ["/path/to/pr-reviewer/dist/mcp-server/index.js"]
+			"args": ["/path/to/local-pr-reviewer/dist/mcp-server/index.js"]
 		}
 	}
 }
@@ -129,7 +129,7 @@ Add to `~/.cursor/mcp.json`:
 	"mcpServers": {
 		"pr-reviewer": {
 			"command": "node",
-			"args": ["/path/to/pr-reviewer/dist/mcp-server/index.js"]
+			"args": ["/path/to/local-pr-reviewer/dist/mcp-server/index.js"]
 		}
 	}
 }
