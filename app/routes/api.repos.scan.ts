@@ -95,19 +95,34 @@ export async function loader() {
 						const git = yield* GitService;
 						const { config } = yield* ConfigService;
 
-						const repoStream = scanForReposStream(
-							git,
-							config.repoScanRoot,
-							config.repoScanMaxDepth,
+						// Create streams for each root and merge them
+						const rootStreams = config.repoScanRoots.map((root) =>
+							scanForReposStream(
+								git,
+								root,
+								config.repoScanMaxDepth,
+							),
 						);
 
-						// Collect and sort for streaming (we still want alphabetical order)
-						// But stream each one as it's added to maintain responsiveness
+						// Merge all streams to scan roots in parallel
+						const mergedStream =
+							rootStreams.length > 0
+								? Stream.mergeAll(rootStreams, {
+										concurrency: rootStreams.length,
+									})
+								: Stream.empty;
+
+						// Track seen paths to deduplicate repos that might appear in multiple roots
+						const seenPaths = new Set<string>();
 						const repos: GitRepo[] = [];
 
-						yield* repoStream.pipe(
+						yield* mergedStream.pipe(
 							Stream.runForEach((repo) =>
 								Effect.sync(() => {
+									// Deduplicate by path
+									if (seenPaths.has(repo.path)) return;
+									seenPaths.add(repo.path);
+
 									repos.push(repo);
 									// Sort incrementally and stream the current state
 									repos.sort((a, b) =>

@@ -7,7 +7,12 @@ export interface AppConfig {
 	readonly openaiApiKey: string | undefined;
 	readonly anthropicApiKey: string | undefined;
 	readonly repoScanMaxDepth: number;
-	readonly repoScanRoot: string;
+	/**
+	 * List of absolute paths to scan for git repositories.
+	 * Configured via REPO_SCAN_ROOT env var (comma-separated).
+	 * Example: REPO_SCAN_ROOT=/Users/me/code,/Users/me/projects
+	 */
+	readonly repoScanRoots: string[];
 }
 
 // Config service interface
@@ -16,6 +21,22 @@ export interface ConfigService {
 }
 
 export const ConfigService = Context.GenericTag<ConfigService>('ConfigService');
+
+/**
+ * Parse comma-separated paths from REPO_SCAN_ROOT env var.
+ * Filters out empty strings and trims whitespace.
+ */
+function parseRepoScanRoots(): string[] {
+	const envValue = process.env.REPO_SCAN_ROOT;
+	if (!envValue) {
+		// Default to home directory if not specified
+		return [process.env.HOME || '/'];
+	}
+	return envValue
+		.split(',')
+		.map((p) => p.trim())
+		.filter((p) => p.length > 0);
+}
 
 // Live implementation - loads config from environment
 export const ConfigServiceLive = Layer.succeed(
@@ -30,7 +51,7 @@ export const ConfigServiceLive = Layer.succeed(
 				process.env.REPO_SCAN_MAX_DEPTH || '3',
 				10,
 			),
-			repoScanRoot: process.env.REPO_SCAN_ROOT || process.env.HOME || '/',
+			repoScanRoots: parseRepoScanRoots(),
 		},
 	}),
 );
