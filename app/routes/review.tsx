@@ -325,8 +325,14 @@ export default function Review() {
 					diffStyle={diffStyle}
 					selectedFile={selectedFile}
 					sessionId={session.id}
+					existingComments={[
+						...queuedComments,
+						...stagedComments,
+						...sentComments,
+					]}
 					onSendNow={handleSendNowFromDiff}
 					scrollToFileRef={scrollToFileRef}
+					onCommentChange={revalidator.revalidate}
 				/>
 			)}
 		</Layout>

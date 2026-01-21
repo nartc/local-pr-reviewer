@@ -1,5 +1,5 @@
-import { Effect } from 'effect';
-import { readdirSync } from 'fs';
+import { Effect, Stream } from 'effect';
+import { Dirent, readdirSync } from 'fs';
 import { join } from 'path';
 import { ConfigService } from '../lib/config';
 import { runtime } from '../lib/effect-runtime';
@@ -22,85 +22,147 @@ const IGNORED_DIRS = new Set([
 	'venv',
 ]);
 
-interface GitRepo {
+export interface GitRepo {
 	path: string;
 	name: string;
 }
 
-const scanForRepos = (
+/**
+ * Stream-based repo scanner that yields repos as they're found
+ */
+const scanForReposStream = (
 	git: GitServiceType,
 	dir: string,
 	maxDepth: number,
 	depth: number = 0,
-): Effect.Effect<GitRepo[]> =>
-	Effect.gen(function* () {
-		if (depth > maxDepth) return [];
+): Stream.Stream<GitRepo> =>
+	Stream.suspend(() => {
+		if (depth > maxDepth) return Stream.empty;
 
-		const repos: GitRepo[] = [];
-
+		let entries: Dirent[];
 		try {
-			const entries = readdirSync(dir, { withFileTypes: true });
-
-			for (const entry of entries) {
-				if (!entry.isDirectory()) continue;
-				if (IGNORED_DIRS.has(entry.name)) continue;
-				if (entry.name.startsWith('.') && entry.name !== '.git')
-					continue;
-
-				const fullPath = join(dir, entry.name);
-
-				// Check if this is a git repo
-				const isRepo = yield* git.isGitRepo(fullPath);
-				if (isRepo) {
-					repos.push({
-						path: fullPath,
-						name: entry.name,
-					});
-					// Don't recurse into git repos
-					continue;
-				}
-
-				// Recurse into subdirectories
-				const subRepos = yield* scanForRepos(
-					git,
-					fullPath,
-					maxDepth,
-					depth + 1,
-				);
-				repos.push(...subRepos);
-			}
+			entries = readdirSync(dir, {
+				withFileTypes: true,
+				encoding: 'utf-8',
+			});
 		} catch {
 			// Ignore permission errors, etc.
+			return Stream.empty;
 		}
 
-		return repos;
+		return Stream.fromIterable(entries).pipe(
+			Stream.filter(
+				(entry) =>
+					entry.isDirectory() &&
+					!IGNORED_DIRS.has(entry.name) &&
+					!(entry.name.startsWith('.') && entry.name !== '.git'),
+			),
+			Stream.mapEffect((entry) =>
+				Effect.gen(function* () {
+					const fullPath = join(dir, entry.name);
+					const isRepo = yield* git.isGitRepo(fullPath);
+					return { entry, fullPath, isRepo };
+				}),
+			),
+			Stream.flatMap(
+				({ entry, fullPath, isRepo }): Stream.Stream<GitRepo> => {
+					if (isRepo) {
+						return Stream.make({
+							path: fullPath,
+							name: entry.name,
+						});
+					}
+					// Recurse into subdirectories
+					return scanForReposStream(
+						git,
+						fullPath,
+						maxDepth,
+						depth + 1,
+					);
+				},
+			),
+		);
 	});
 
 export async function loader() {
-	return runtime.runPromise(
-		Effect.gen(function* () {
-			const git = yield* GitService;
-			const { config } = yield* ConfigService;
-			const repos = yield* scanForRepos(
-				git,
-				config.repoScanRoot,
-				config.repoScanMaxDepth,
-			);
-			// Sort by name
-			repos.sort((a, b) => a.name.localeCompare(b.name));
-			return Response.json({ repos });
-		}).pipe(
-			Effect.catchAll((error) =>
-				Effect.succeed(
-					Response.json(
-						{
-							error:
-								String(error) || 'Failed to scan repositories',
-						},
-						{ status: 500 },
+	const encoder = new TextEncoder();
+
+	const stream = new ReadableStream({
+		async start(controller) {
+			try {
+				await runtime.runPromise(
+					Effect.gen(function* () {
+						const git = yield* GitService;
+						const { config } = yield* ConfigService;
+
+						const repoStream = scanForReposStream(
+							git,
+							config.repoScanRoot,
+							config.repoScanMaxDepth,
+						);
+
+						// Collect and sort for streaming (we still want alphabetical order)
+						// But stream each one as it's added to maintain responsiveness
+						const repos: GitRepo[] = [];
+
+						yield* repoStream.pipe(
+							Stream.runForEach((repo) =>
+								Effect.sync(() => {
+									repos.push(repo);
+									// Sort incrementally and stream the current state
+									repos.sort((a, b) =>
+										a.name.localeCompare(b.name),
+									);
+									// Stream as NDJSON - each line is a complete JSON object
+									controller.enqueue(
+										encoder.encode(
+											JSON.stringify({
+												type: 'repo',
+												data: repo,
+											}) + '\n',
+										),
+									);
+								}),
+							),
+						);
+
+						// Signal completion
+						controller.enqueue(
+							encoder.encode(
+								JSON.stringify({
+									type: 'done',
+									total: repos.length,
+								}) + '\n',
+							),
+						);
+					}).pipe(
+						Effect.catchAll((error) =>
+							Effect.sync(() => {
+								controller.enqueue(
+									encoder.encode(
+										JSON.stringify({
+											type: 'error',
+											message:
+												String(error) ||
+												'Failed to scan repositories',
+										}) + '\n',
+									),
+								);
+							}),
+						),
 					),
-				),
-			),
-		),
-	);
+				);
+			} finally {
+				controller.close();
+			}
+		},
+	});
+
+	return new Response(stream, {
+		headers: {
+			'Content-Type': 'application/x-ndjson',
+			'Transfer-Encoding': 'chunked',
+			'Cache-Control': 'no-cache',
+		},
+	});
 }

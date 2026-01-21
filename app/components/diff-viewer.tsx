@@ -12,6 +12,7 @@ import {
 	Button,
 	DropdownMenu,
 	IconButton,
+	Popover,
 	Spinner,
 	Text,
 	Tooltip,
@@ -38,6 +39,7 @@ import {
 	VscFile,
 } from 'react-icons/vsc';
 import { useTheme } from '../lib/theme';
+import type { Comment } from '../services/comment.service';
 import { InlineCommentForm } from './inline-comment-form';
 
 // Hoisted static loading states
@@ -220,6 +222,8 @@ interface DiffViewerProps {
 	diffStyle?: DiffStyle;
 	selectedFile?: string | null;
 	sessionId: string;
+	/** Existing comments to show indicators for */
+	existingComments?: Comment[];
 	onFileVisible?: (filePath: string) => void;
 	onSendNow?: (
 		content: string,
@@ -227,16 +231,68 @@ interface DiffViewerProps {
 		lineStart?: number,
 		lineEnd?: number,
 	) => void;
+	/** Called when a comment is created/updated/deleted */
+	onCommentChange?: () => void;
 	/** Ref callback to expose scrollToFile function to parent */
 	scrollToFileRef?: React.MutableRefObject<
 		((filePath: string) => void) | null
 	>;
 }
 
-interface CommentAnnotation {
+interface CommentFormAnnotation {
 	type: 'comment-form';
 	lineStart: number;
 	lineEnd?: number;
+}
+
+interface CommentIndicatorAnnotation {
+	type: 'comment-indicator';
+	comments: Comment[];
+}
+
+type CommentAnnotation = CommentFormAnnotation | CommentIndicatorAnnotation;
+
+/** Map of file path -> line number -> comments at that line */
+type CommentMap = Map<string, Map<number, Comment[]>>;
+
+/**
+ * Build a map of comments by file path and line number for quick lookup
+ */
+function buildCommentMap(comments: Comment[]): CommentMap {
+	const map: CommentMap = new Map();
+
+	for (const comment of comments) {
+		if (!map.has(comment.file_path)) {
+			map.set(comment.file_path, new Map());
+		}
+		const fileMap = map.get(comment.file_path)!;
+
+		// For single line comments or file-level comments
+		if (comment.line_start !== null) {
+			const lineKey = comment.line_start;
+			if (!fileMap.has(lineKey)) {
+				fileMap.set(lineKey, []);
+			}
+			fileMap.get(lineKey)!.push(comment);
+
+			// For multi-line comments, also index by end line
+			if (
+				comment.line_end !== null &&
+				comment.line_end !== comment.line_start
+			) {
+				if (!fileMap.has(comment.line_end)) {
+					fileMap.set(comment.line_end, []);
+				}
+				// Only add if not already there (avoid duplicates)
+				const endLineComments = fileMap.get(comment.line_end)!;
+				if (!endLineComments.includes(comment)) {
+					endLineComments.push(comment);
+				}
+			}
+		}
+	}
+
+	return map;
 }
 
 function DiffViewerClient({
@@ -245,7 +301,9 @@ function DiffViewerClient({
 	diffStyle = 'split',
 	selectedFile,
 	sessionId,
+	existingComments = [],
 	onSendNow,
+	onCommentChange,
 	scrollToFileRef,
 }: Omit<DiffViewerProps, 'onFileVisible'>) {
 	const { resolvedTheme } = useTheme();
@@ -263,6 +321,12 @@ function DiffViewerClient({
 		isInitialized,
 		loadedFiles,
 	} = state;
+
+	// Build comment map for quick lookup by file and line
+	const commentMap = useMemo(
+		() => buildCommentMap(existingComments),
+		[existingComments],
+	);
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const [DiffComponents, setDiffComponents] = useState<{
@@ -552,8 +616,40 @@ function DiffViewerClient({
 					const isFileComment =
 						isCommentingOnThisFile && commentForm?.isFileComment;
 
-					// Only create line annotations for non-file comments
-					const lineAnnotations =
+					// Build line annotations:
+					// 1. Comment indicators for lines with existing comments
+					// 2. Comment form if actively commenting on this file
+					const fileCommentsMap = commentMap.get(filePath);
+					const indicatorAnnotations: Array<{
+						side: AnnotationSide;
+						lineNumber: number;
+						metadata: CommentIndicatorAnnotation;
+					}> = [];
+
+					if (fileCommentsMap) {
+						for (const [
+							lineNum,
+							lineComments,
+						] of fileCommentsMap.entries()) {
+							// Skip if we're currently editing this line (form will show instead)
+							if (
+								isCommentingOnThisFile &&
+								commentForm.lineStart === lineNum
+							) {
+								continue;
+							}
+							indicatorAnnotations.push({
+								side: 'additions', // Default to additions side
+								lineNumber: lineNum,
+								metadata: {
+									type: 'comment-indicator',
+									comments: lineComments,
+								},
+							});
+						}
+					}
+
+					const formAnnotation =
 						isCommentingOnThisFile &&
 						!isFileComment &&
 						commentForm.lineStart !== undefined
@@ -571,6 +667,11 @@ function DiffViewerClient({
 									},
 								]
 							: [];
+
+					const lineAnnotations = [
+						...indicatorAnnotations,
+						...formAnnotation,
+					];
 
 					return (
 						<div
@@ -647,6 +748,7 @@ function DiffViewerClient({
 											sessionId={sessionId}
 											commentForm={commentForm}
 											onSendNow={onSendNow}
+											onCommentChange={onCommentChange}
 											handleCloseComment={
 												handleCloseComment
 											}
@@ -695,6 +797,7 @@ interface FileDiffWrapperProps {
 		lineStart?: number,
 		lineEnd?: number,
 	) => void;
+	onCommentChange?: () => void;
 	handleCloseComment: () => void;
 	onLoaded: () => void;
 }
@@ -703,6 +806,255 @@ interface HoveredLineResult {
 	lineNumber: number;
 	lineElement: HTMLElement;
 	side: AnnotationSide;
+}
+
+/**
+ * Simple add comment button shown on hover.
+ * Lines with existing comments show persistent indicators via annotations.
+ */
+function HoverAddCommentButton({
+	getHoveredLine,
+	filePath,
+	handleAddComment,
+}: {
+	getHoveredLine: () => HoveredLineResult | undefined;
+	filePath: string;
+	handleAddComment: (
+		filePath: string,
+		getHoveredLine: () => HoveredLineResult | undefined,
+	) => void;
+}) {
+	return (
+		<Tooltip content="Add comment">
+			<IconButton
+				size="1"
+				variant="solid"
+				aria-label="Add comment"
+				onClick={() => handleAddComment(filePath, getHoveredLine)}
+			>
+				<VscAdd className="w-3 h-3" />
+			</IconButton>
+		</Tooltip>
+	);
+}
+
+/**
+ * Badge shown in the gutter for lines with existing comments.
+ * Renders as a small icon that opens a popover on click.
+ */
+function GutterCommentBadge({
+	comments,
+	lineNumber,
+	filePath,
+	sessionId,
+	onCommentChange,
+	onAddComment,
+}: {
+	comments: Comment[];
+	lineNumber: number;
+	filePath: string;
+	sessionId: string;
+	onCommentChange?: () => void;
+	onAddComment: () => void;
+}) {
+	const hasEditableComments = comments.some(
+		(c) => c.status === 'queued' || c.status === 'staged',
+	);
+
+	return (
+		<div className="flex items-center gap-1 py-1">
+			<Popover.Root>
+				<Popover.Trigger>
+					<IconButton
+						size="1"
+						variant="soft"
+						color={hasEditableComments ? 'amber' : 'blue'}
+						aria-label={`${comments.length} comment${comments.length > 1 ? 's' : ''} on line ${lineNumber}`}
+					>
+						<VscComment className="w-3 h-3" />
+						{comments.length > 1 && (
+							<span className="text-[10px] ml-0.5">
+								{comments.length}
+							</span>
+						)}
+					</IconButton>
+				</Popover.Trigger>
+				<Popover.Content
+					side="right"
+					align="start"
+					className="w-80 max-h-96 overflow-auto"
+				>
+					<div className="space-y-3">
+						<Text size="2" weight="medium">
+							Comments on line {lineNumber}
+						</Text>
+
+						{/* List existing comments */}
+						<div className="space-y-2">
+							{comments.map((comment) => (
+								<CommentPreviewCard
+									key={comment.id}
+									comment={comment}
+									sessionId={sessionId}
+									onCommentChange={onCommentChange}
+								/>
+							))}
+						</div>
+
+						{/* Add new comment button */}
+						<Popover.Close>
+							<Button
+								size="1"
+								variant="soft"
+								className="w-full"
+								onClick={onAddComment}
+							>
+								<VscAdd className="w-3 h-3" />
+								Add another comment
+							</Button>
+						</Popover.Close>
+					</div>
+				</Popover.Content>
+			</Popover.Root>
+		</div>
+	);
+}
+
+/**
+ * Small preview card for a comment in the gutter popover
+ */
+function CommentPreviewCard({
+	comment,
+	sessionId,
+	onCommentChange,
+}: {
+	comment: Comment;
+	sessionId: string;
+	onCommentChange?: () => void;
+}) {
+	const [isEditing, setIsEditing] = useState(false);
+	const [editContent, setEditContent] = useState(comment.content);
+	const [isSaving, setIsSaving] = useState(false);
+
+	const isEditable =
+		comment.status === 'queued' || comment.status === 'staged';
+	const statusColors: Record<string, 'amber' | 'blue' | 'green' | 'gray'> = {
+		queued: 'amber',
+		staged: 'blue',
+		sent: 'green',
+		resolved: 'gray',
+	};
+
+	const handleSave = async () => {
+		if (!editContent.trim()) return;
+		setIsSaving(true);
+
+		try {
+			const formData = new URLSearchParams();
+			formData.append('intent', 'update');
+			formData.append('commentId', comment.id);
+			formData.append('content', editContent);
+
+			await fetch('/api/comments', {
+				method: 'POST',
+				body: formData,
+			});
+
+			setIsEditing(false);
+			onCommentChange?.();
+		} finally {
+			setIsSaving(false);
+		}
+	};
+
+	const handleDelete = async () => {
+		try {
+			const formData = new URLSearchParams();
+			formData.append('intent', 'delete');
+			formData.append('commentId', comment.id);
+
+			await fetch('/api/comments', {
+				method: 'POST',
+				body: formData,
+			});
+
+			onCommentChange?.();
+		} catch (error) {
+			console.error('Failed to delete comment:', error);
+		}
+	};
+
+	if (isEditing) {
+		return (
+			<div className="p-2 rounded-md border border-theme-border bg-theme-surface space-y-2">
+				<textarea
+					value={editContent}
+					onChange={(e) => setEditContent(e.target.value)}
+					className="w-full p-2 text-sm rounded border border-theme-border bg-theme-bg resize-none"
+					rows={3}
+					autoFocus
+				/>
+				<div className="flex gap-2 justify-end">
+					<Button
+						size="1"
+						variant="soft"
+						color="gray"
+						onClick={() => {
+							setIsEditing(false);
+							setEditContent(comment.content);
+						}}
+						disabled={isSaving}
+					>
+						Cancel
+					</Button>
+					<Button
+						size="1"
+						variant="solid"
+						onClick={handleSave}
+						disabled={isSaving || !editContent.trim()}
+					>
+						{isSaving ? 'Saving...' : 'Save'}
+					</Button>
+				</div>
+			</div>
+		);
+	}
+
+	return (
+		<div className="p-2 rounded-md border border-theme-border bg-theme-surface">
+			<div className="flex items-start justify-between gap-2">
+				<Text size="1" className="line-clamp-3 flex-1">
+					{comment.content}
+				</Text>
+				<Badge
+					size="1"
+					color={statusColors[comment.status] || 'gray'}
+					variant="soft"
+				>
+					{comment.status}
+				</Badge>
+			</div>
+			{isEditable && (
+				<div className="flex gap-2 mt-2">
+					<Button
+						size="1"
+						variant="ghost"
+						onClick={() => setIsEditing(true)}
+					>
+						Edit
+					</Button>
+					<Button
+						size="1"
+						variant="ghost"
+						color="red"
+						onClick={handleDelete}
+					>
+						Delete
+					</Button>
+				</div>
+			)}
+		</div>
+	);
 }
 
 function FileDiffWrapper({
@@ -718,6 +1070,7 @@ function FileDiffWrapper({
 	handleAddComment,
 	sessionId,
 	onSendNow,
+	onCommentChange,
 	handleCloseComment,
 	onLoaded,
 }: FileDiffWrapperProps) {
@@ -745,46 +1098,71 @@ function FileDiffWrapper({
 			renderHoverUtility={(
 				getHoveredLine: () => HoveredLineResult | undefined,
 			) => (
-				<Tooltip content="Add comment">
-					<IconButton
-						size="1"
-						variant="solid"
-						aria-label="Add comment"
-						onClick={() =>
-							handleAddComment(filePath, getHoveredLine)
-						}
-					>
-						<VscAdd className="w-3 h-3" />
-					</IconButton>
-				</Tooltip>
+				<HoverAddCommentButton
+					getHoveredLine={getHoveredLine}
+					filePath={filePath}
+					handleAddComment={handleAddComment}
+				/>
 			)}
 			renderAnnotation={(annotation: {
 				side: AnnotationSide;
 				lineNumber: number;
 				metadata: CommentAnnotation;
-			}) => (
-				<InlineCommentForm
-					sessionId={sessionId}
-					filePath={filePath}
-					lineStart={annotation.metadata.lineStart}
-					lineEnd={annotation.metadata.lineEnd}
-					side={annotation.side === 'additions' ? 'new' : 'old'}
-					onClose={handleCloseComment}
-					onSendNow={
-						onSendNow
-							? (content) => {
-									onSendNow(
-										content,
-										filePath,
-										annotation.metadata.lineStart,
-										annotation.metadata.lineEnd,
-									);
-									handleCloseComment();
-								}
-							: undefined
-					}
-				/>
-			)}
+			}) => {
+				const { metadata } = annotation;
+
+				if (metadata.type === 'comment-form') {
+					const formMeta = metadata as CommentFormAnnotation;
+					return (
+						<InlineCommentForm
+							sessionId={sessionId}
+							filePath={filePath}
+							lineStart={formMeta.lineStart}
+							lineEnd={formMeta.lineEnd}
+							side={
+								annotation.side === 'additions' ? 'new' : 'old'
+							}
+							onClose={handleCloseComment}
+							onSendNow={
+								onSendNow
+									? (content) => {
+											onSendNow(
+												content,
+												filePath,
+												formMeta.lineStart,
+												formMeta.lineEnd,
+											);
+											handleCloseComment();
+										}
+									: undefined
+							}
+						/>
+					);
+				}
+
+				if (metadata.type === 'comment-indicator') {
+					const indicatorMeta =
+						metadata as CommentIndicatorAnnotation;
+					return (
+						<GutterCommentBadge
+							comments={indicatorMeta.comments}
+							lineNumber={annotation.lineNumber}
+							filePath={filePath}
+							sessionId={sessionId}
+							onCommentChange={onCommentChange}
+							onAddComment={() =>
+								handleAddComment(filePath, () => ({
+									lineNumber: annotation.lineNumber,
+									lineElement: document.body,
+									side: annotation.side,
+								}))
+							}
+						/>
+					);
+				}
+
+				return null;
+			}}
 		/>
 	);
 }
@@ -962,7 +1340,9 @@ export function DiffViewer({
 	diffStyle = 'split',
 	selectedFile,
 	sessionId,
+	existingComments,
 	onSendNow,
+	onCommentChange,
 	scrollToFileRef,
 }: DiffViewerProps) {
 	const [isClient, setIsClient] = useState(false);
@@ -986,7 +1366,9 @@ export function DiffViewer({
 			diffStyle={diffStyle}
 			selectedFile={selectedFile}
 			sessionId={sessionId}
+			existingComments={existingComments}
 			onSendNow={onSendNow}
+			onCommentChange={onCommentChange}
 			scrollToFileRef={scrollToFileRef}
 		/>
 	);
