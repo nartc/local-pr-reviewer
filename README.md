@@ -43,15 +43,15 @@ Add the following to your agent's MCP configuration:
 
 ```json
 {
- "mcpServers": {
-  "pr-reviewer": {
-   "type": "local",
-   "command": [
-    "node",
-    "/absolute/path/to/local-pr-reviewer/dist/mcp-server/index.js"
-   ]
-  }
- }
+	"mcpServers": {
+		"pr-reviewer": {
+			"type": "local",
+			"command": [
+				"node",
+				"/absolute/path/to/local-pr-reviewer/dist/mcp-server/index.js"
+			]
+		}
+	}
 }
 ```
 
@@ -59,14 +59,14 @@ Add the following to your agent's MCP configuration:
 
 ```json
 {
- "mcpServers": {
-  "pr-reviewer": {
-   "command": "node",
-   "args": [
-    "/absolute/path/to/local-pr-reviewer/dist/mcp-server/index.js"
-   ]
-  }
- }
+	"mcpServers": {
+		"pr-reviewer": {
+			"command": "node",
+			"args": [
+				"/absolute/path/to/local-pr-reviewer/dist/mcp-server/index.js"
+			]
+		}
+	}
 }
 ```
 
@@ -74,14 +74,14 @@ Add the following to your agent's MCP configuration:
 
 ```json
 {
- "mcpServers": {
-  "pr-reviewer": {
-   "command": "node",
-   "args": [
-    "/absolute/path/to/local-pr-reviewer/dist/mcp-server/index.js"
-   ]
-  }
- }
+	"mcpServers": {
+		"pr-reviewer": {
+			"command": "node",
+			"args": [
+				"/absolute/path/to/local-pr-reviewer/dist/mcp-server/index.js"
+			]
+		}
+	}
 }
 ```
 
@@ -126,9 +126,23 @@ OPENAI_API_KEY=your-key-here
 ANTHROPIC_API_KEY=your-key-here
 
 # Repository scanning settings
-REPO_SCAN_ROOT=~/code        # Root directory to scan for git repos
-REPO_SCAN_MAX_DEPTH=3        # How deep to scan for repos
+REPO_SCAN_ROOT=/Users/me/code              # Directories to scan for git repos
+REPO_SCAN_MAX_DEPTH=3                      # How deep to scan for repos
 ```
+
+### Repository Scanning
+
+`REPO_SCAN_ROOT` accepts a comma-separated list of **absolute paths** to scan for git repositories:
+
+```bash
+# Single directory
+REPO_SCAN_ROOT=/Users/me/code
+
+# Multiple directories
+REPO_SCAN_ROOT=/Users/me/code,/Users/me/projects,/Users/me/work
+```
+
+If not set, defaults to your home directory (`$HOME`).
 
 ## Usage
 
