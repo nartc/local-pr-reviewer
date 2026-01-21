@@ -1,5 +1,5 @@
 import { Button, Spinner, Text, TextField } from '@radix-ui/themes';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { VscRepo } from 'react-icons/vsc';
 
 interface RepoPickerProps {
@@ -19,11 +19,51 @@ interface StreamMessage {
 	message?: string;
 }
 
+interface RepoPickerState {
+	repos: GitRepo[];
+	loading: boolean;
+	error: string | null;
+	filter: string;
+}
+
+type RepoPickerAction =
+	| { type: 'ADD_REPO'; repo: GitRepo }
+	| { type: 'SET_LOADING'; loading: boolean }
+	| { type: 'SET_ERROR'; error: string | null }
+	| { type: 'SET_FILTER'; filter: string };
+
+const initialState: RepoPickerState = {
+	repos: [],
+	loading: true,
+	error: null,
+	filter: '',
+};
+
+function repoPickerReducer(
+	state: RepoPickerState,
+	action: RepoPickerAction,
+): RepoPickerState {
+	switch (action.type) {
+		case 'ADD_REPO': {
+			// Insert in sorted order
+			const next = [...state.repos, action.repo];
+			next.sort((a, b) => a.name.localeCompare(b.name));
+			return { ...state, repos: next };
+		}
+		case 'SET_LOADING':
+			return { ...state, loading: action.loading };
+		case 'SET_ERROR':
+			return { ...state, error: action.error };
+		case 'SET_FILTER':
+			return { ...state, filter: action.filter };
+		default:
+			return state;
+	}
+}
+
 export function RepoPicker({ onSelect, onCancel }: RepoPickerProps) {
-	const [repos, setRepos] = useState<GitRepo[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-	const [filter, setFilter] = useState('');
+	const [state, dispatch] = useReducer(repoPickerReducer, initialState);
+	const { repos, loading, error, filter } = state;
 	const abortControllerRef = useRef<AbortController | null>(null);
 
 	useEffect(() => {
@@ -66,22 +106,23 @@ export function RepoPicker({ onSelect, onCancel }: RepoPickerProps) {
 								// Deduplicate repos by path
 								if (!seenPaths.has(message.data.path)) {
 									seenPaths.add(message.data.path);
-									setRepos((prev) => {
-										const next = [...prev, message.data!];
-										// Keep sorted by name
-										next.sort((a, b) =>
-											a.name.localeCompare(b.name),
-										);
-										return next;
+									dispatch({
+										type: 'ADD_REPO',
+										repo: message.data,
 									});
 								}
 							} else if (message.type === 'error') {
-								setError(
-									message.message ||
+								dispatch({
+									type: 'SET_ERROR',
+									error:
+										message.message ||
 										'Failed to scan repositories',
-								);
+								});
 							} else if (message.type === 'done') {
-								setLoading(false);
+								dispatch({
+									type: 'SET_LOADING',
+									loading: false,
+								});
 							}
 						} catch {
 							// Ignore malformed JSON lines
@@ -94,20 +135,23 @@ export function RepoPicker({ onSelect, onCancel }: RepoPickerProps) {
 					try {
 						const message: StreamMessage = JSON.parse(buffer);
 						if (message.type === 'done') {
-							setLoading(false);
+							dispatch({ type: 'SET_LOADING', loading: false });
 						}
 					} catch {
 						// Ignore
 					}
 				}
 
-				setLoading(false);
+				dispatch({ type: 'SET_LOADING', loading: false });
 			} catch (err) {
 				if (err instanceof Error && err.name === 'AbortError') {
 					return; // Cancelled, don't update state
 				}
-				setError(err instanceof Error ? err.message : 'Unknown error');
-				setLoading(false);
+				dispatch({
+					type: 'SET_ERROR',
+					error: err instanceof Error ? err.message : 'Unknown error',
+				});
+				dispatch({ type: 'SET_LOADING', loading: false });
 			}
 		}
 
@@ -131,7 +175,9 @@ export function RepoPicker({ onSelect, onCancel }: RepoPickerProps) {
 				<TextField.Root
 					placeholder="Filter repositories..."
 					value={filter}
-					onChange={(e) => setFilter(e.target.value)}
+					onChange={(e) =>
+						dispatch({ type: 'SET_FILTER', filter: e.target.value })
+					}
 					autoFocus
 				/>
 				{loading && repos.length > 0 && (
@@ -178,22 +224,18 @@ export function RepoPicker({ onSelect, onCancel }: RepoPickerProps) {
 								key={repo.path}
 								role="option"
 								aria-selected={false}
+								onClick={() => onSelect(repo.path)}
+								className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
 							>
-								<Button
-									variant="ghost"
-									onClick={() => onSelect(repo.path)}
-									className="w-full justify-start px-4 py-3 h-auto"
-								>
-									<VscRepo className="w-5 h-5 text-gray-400 shrink-0" />
-									<div className="min-w-0 flex flex-col items-start gap-0.5">
-										<Text size="2" weight="medium" truncate>
-											{repo.name}
-										</Text>
-										<Text size="1" color="gray" truncate>
-											{repo.path}
-										</Text>
-									</div>
-								</Button>
+								<VscRepo className="w-5 h-5 text-gray-400 shrink-0" />
+								<div className="min-w-0 flex flex-col gap-0.5">
+									<Text size="2" weight="medium" truncate>
+										{repo.name}
+									</Text>
+									<Text size="1" color="gray" truncate>
+										{repo.path}
+									</Text>
+								</div>
 							</li>
 						))}
 					</ul>

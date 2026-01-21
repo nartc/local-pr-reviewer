@@ -1,5 +1,5 @@
 import { Button, Dialog, Spinner, Text, TextField } from '@radix-ui/themes';
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer } from 'react';
 import { VscCheck, VscSourceControl } from 'react-icons/vsc';
 import { useFetcher } from 'react-router';
 
@@ -10,16 +10,57 @@ interface BaseBranchSelectorProps {
 	onBranchChange?: (branch: string) => void;
 }
 
+interface BranchSelectorState {
+	open: boolean;
+	branches: string[];
+	selectedBranch: string;
+	loading: boolean;
+}
+
+type BranchSelectorAction =
+	| { type: 'SET_OPEN'; open: boolean }
+	| { type: 'SET_BRANCHES'; branches: string[] }
+	| { type: 'SET_SELECTED_BRANCH'; branch: string }
+	| { type: 'SET_LOADING'; loading: boolean }
+	| { type: 'RESET'; currentBaseBranch: string };
+
+function branchSelectorReducer(
+	state: BranchSelectorState,
+	action: BranchSelectorAction,
+): BranchSelectorState {
+	switch (action.type) {
+		case 'SET_OPEN':
+			return { ...state, open: action.open };
+		case 'SET_BRANCHES':
+			return { ...state, branches: action.branches };
+		case 'SET_SELECTED_BRANCH':
+			return { ...state, selectedBranch: action.branch };
+		case 'SET_LOADING':
+			return { ...state, loading: action.loading };
+		case 'RESET':
+			return {
+				...state,
+				open: false,
+				selectedBranch: action.currentBaseBranch,
+			};
+		default:
+			return state;
+	}
+}
+
 export function BaseBranchSelector({
 	currentBaseBranch,
 	repoId,
 	sessionId,
 	onBranchChange,
 }: BaseBranchSelectorProps) {
-	const [open, setOpen] = useState(false);
-	const [branches, setBranches] = useState<string[]>([]);
-	const [selectedBranch, setSelectedBranch] = useState(currentBaseBranch);
-	const [loading, setLoading] = useState(false);
+	const [state, dispatch] = useReducer(branchSelectorReducer, {
+		open: false,
+		branches: [],
+		selectedBranch: currentBaseBranch,
+		loading: false,
+	});
+	const { open, branches, selectedBranch, loading } = state;
 	const fetcher = useFetcher();
 
 	useEffect(() => {
@@ -29,13 +70,16 @@ export function BaseBranchSelector({
 	}, [open]);
 
 	const fetchBranches = async () => {
-		setLoading(true);
+		dispatch({ type: 'SET_LOADING', loading: true });
 		try {
-			setBranches(['main', 'master', 'develop', 'staging']);
+			dispatch({
+				type: 'SET_BRANCHES',
+				branches: ['main', 'master', 'develop', 'staging'],
+			});
 		} catch (error) {
 			console.error('Failed to fetch branches:', error);
 		}
-		setLoading(false);
+		dispatch({ type: 'SET_LOADING', loading: false });
 	};
 
 	const handleSave = () => {
@@ -48,11 +92,15 @@ export function BaseBranchSelector({
 			{ method: 'POST', action: '/api/repos' },
 		);
 		onBranchChange?.(selectedBranch);
-		setOpen(false);
+		dispatch({ type: 'SET_OPEN', open: false });
+	};
+
+	const handleOpenChange = (isOpen: boolean) => {
+		dispatch({ type: 'SET_OPEN', open: isOpen });
 	};
 
 	return (
-		<Dialog.Root open={open} onOpenChange={setOpen}>
+		<Dialog.Root open={open} onOpenChange={handleOpenChange}>
 			<Dialog.Trigger>
 				<Button
 					variant="ghost"
@@ -82,7 +130,12 @@ export function BaseBranchSelector({
 							<Button
 								key={branch}
 								variant="ghost"
-								onClick={() => setSelectedBranch(branch)}
+								onClick={() =>
+									dispatch({
+										type: 'SET_SELECTED_BRANCH',
+										branch,
+									})
+								}
 								role="radio"
 								aria-checked={selectedBranch === branch}
 								className={`w-full justify-between ${
@@ -107,7 +160,12 @@ export function BaseBranchSelector({
 					</Text>
 					<TextField.Root
 						value={selectedBranch}
-						onChange={(e) => setSelectedBranch(e.target.value)}
+						onChange={(e) =>
+							dispatch({
+								type: 'SET_SELECTED_BRANCH',
+								branch: e.target.value,
+							})
+						}
 						placeholder="branch-name"
 					/>
 				</div>
