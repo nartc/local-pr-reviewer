@@ -72,6 +72,25 @@ When user mentions: review, PR, pull request, comment, feedback
 2. If pending: ask user before addressing
 3. If confirmed: fetch and address each comment
 
+### If MCP Tools Not Available
+
+If you don't see `check_for_pending_reviews` or other `local-pr-reviewer` tools:
+
+1. **Check if MCP is configured**: Read `~/.claude/settings.json` and look for `local-pr-reviewer` in `mcpServers`
+2. **If not configured**: The user needs to run `/local-pr-review setup` first
+3. **If configured but not working**:
+    - Verify the path exists: `ls {installPath}/dist/mcp-server/index.js`
+    - Rebuild if needed: `pnpm build:mcp` in the install directory
+    - Claude Code needs restart after MCP config changes
+
+**Alternative without MCP**: Check signal files directly:
+
+```bash
+ls ~/.config/local-pr-reviewer/signals/
+```
+
+If signal files exist, the webapp has pending comments. Direct user to the webapp UI.
+
 ## Starting Webapp
 
 Check `~/.config/local-pr-reviewer/runtime.json`:

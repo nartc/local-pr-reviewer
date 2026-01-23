@@ -8,4 +8,6 @@ export default [
 	route('api/send', 'routes/api.send.ts'),
 	route('api/process', 'routes/api.process.ts'),
 	route('api/mcp/status', 'routes/api.mcp.status.ts'),
+	route('api/health', 'routes/api.health.ts'),
+	route('api/session', 'routes/api.session.ts'),
 ] satisfies RouteConfig;
