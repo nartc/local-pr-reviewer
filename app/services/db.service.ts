@@ -1,6 +1,7 @@
+import { FileSystem } from '@effect/platform';
+import { NodeFileSystem } from '@effect/platform-node';
 import Database from 'better-sqlite3';
 import { Context, Effect, Layer } from 'effect';
-import { readFileSync } from 'fs';
 import { join } from 'path';
 import { DatabaseError } from '../lib/errors';
 
@@ -16,6 +17,7 @@ export const DbService = Context.GenericTag<DbService>('DbService');
 
 // Database file path
 const DB_PATH = join(process.cwd(), 'db', 'pr-reviewer.db');
+const DB_DIR = join(process.cwd(), 'db');
 
 // Create database connection
 const createDatabase = (): Database.Database => {
@@ -25,43 +27,78 @@ const createDatabase = (): Database.Database => {
 	return db;
 };
 
-// Run migrations
-const runMigrations = (db: Database.Database): void => {
-	const schemaPath = join(process.cwd(), 'db', 'schema.sql');
-	const schema = readFileSync(schemaPath, 'utf-8');
-	db.exec(schema);
-};
+// Run schema and migrations using Effect FileSystem
+const runMigrations = (db: Database.Database) =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+
+		// Run base schema
+		const schemaPath = join(DB_DIR, 'schema.sql');
+		const schema = yield* fs.readFileString(schemaPath);
+		db.exec(schema);
+
+		// Run migrations
+		const migrationsDir = join(DB_DIR, 'migrations');
+		const exists = yield* fs.exists(migrationsDir);
+
+		if (exists) {
+			const entries = yield* fs.readDirectory(migrationsDir);
+			const migrations = entries.filter((f) => f.endsWith('.sql')).sort();
+
+			for (const migration of migrations) {
+				const migrationPath = join(migrationsDir, migration);
+				const sql = yield* fs.readFileString(migrationPath);
+				try {
+					db.exec(sql);
+				} catch (error) {
+					// Ignore "duplicate column" or "already exists" errors
+					const message =
+						error instanceof Error ? error.message : String(error);
+					if (
+						!message.includes('duplicate column') &&
+						!message.includes('already exists')
+					) {
+						yield* Effect.logWarning(
+							`Migration ${migration} failed: ${message}`,
+						);
+					}
+				}
+			}
+		}
+
+		return db;
+	});
 
 // Singleton database instance
 let dbInstance: Database.Database | null = null;
 
-const getDb = (): Database.Database => {
-	if (!dbInstance) {
-		dbInstance = createDatabase();
-		runMigrations(dbInstance);
-	}
-	return dbInstance;
-};
-
-// Live implementation
-export const DbServiceLive = Layer.succeed(
+// Live implementation - effectful layer that runs migrations on init
+export const DbServiceLive = Layer.effect(
 	DbService,
-	DbService.of({
-		db: getDb(),
-		run: <T>(fn: (db: Database.Database) => T) =>
-			Effect.try({
-				try: () => fn(getDb()),
-				catch: (error) =>
-					new DatabaseError({
-						message:
-							error instanceof Error
-								? error.message
-								: 'Database error',
-						cause: error,
-					}),
-			}),
+	Effect.gen(function* () {
+		if (!dbInstance) {
+			dbInstance = createDatabase();
+			yield* runMigrations(dbInstance);
+			yield* Effect.logDebug('Database initialized with migrations');
+		}
+
+		return DbService.of({
+			db: dbInstance,
+			run: <T>(fn: (db: Database.Database) => T) =>
+				Effect.try({
+					try: () => fn(dbInstance!),
+					catch: (error) =>
+						new DatabaseError({
+							message:
+								error instanceof Error
+									? error.message
+									: 'Database error',
+							cause: error,
+						}),
+				}),
+		});
 	}),
-);
+).pipe(Layer.provide(NodeFileSystem.layer));
 
 // Helper functions for common operations
 export const query = <T>(
@@ -94,4 +131,11 @@ export const execute = (
 	});
 
 // Direct access for use outside Effect context
-export const getDatabase = (): Database.Database => getDb();
+export const getDatabase = (): Database.Database => {
+	if (!dbInstance) {
+		throw new Error(
+			'Database not initialized. Ensure DbServiceLive layer is provided.',
+		);
+	}
+	return dbInstance;
+};

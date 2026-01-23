@@ -144,16 +144,6 @@ REPO_SCAN_ROOT=/Users/me/code,/Users/me/projects,/Users/me/work
 
 If not set, defaults to your home directory (`$HOME`).
 
-## Database Setup
-
-The app uses SQLite for local storage. The database is created automatically on first run.
-
-**Upgrading from a previous version?** Delete the old database to pick up schema changes:
-
-```bash
-rm db/pr-reviewer.db
-```
-
 ## Usage
 
 Start the server:
