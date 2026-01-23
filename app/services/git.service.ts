@@ -1,6 +1,6 @@
+import { FileSystem, Path } from '@effect/platform';
+import { NodeContext } from '@effect/platform-node';
 import { Context, Effect, Layer, Stream } from 'effect';
-import { type Dirent, existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import simpleGit, { type DiffResultTextFile, type SimpleGit } from 'simple-git';
 import { GitError, NotAGitRepoError } from '../lib/errors';
 
@@ -58,7 +58,6 @@ export interface GitService {
 	/**
 	 * Scan directories for git repositories.
 	 * Returns a stream that yields repos as they're found.
-	 * Uses fast filesystem check (existsSync for .git folder).
 	 */
 	readonly scanForRepos: (
 		roots: string[],
@@ -96,274 +95,292 @@ const parseStatus = (
 	}
 };
 
-// Live implementation
-export const GitServiceLive = Layer.succeed(
+// Live implementation - depends on FileSystem and Path from @effect/platform
+export const GitServiceLive = Layer.effect(
 	GitService,
-	GitService.of({
-		isGitRepo: (path: string) =>
-			Effect.tryPromise({
-				try: async () => {
-					const git = gitFor(path);
-					return await git.checkIsRepo();
-				},
-				catch: () => false as never,
-			}).pipe(Effect.catchAll(() => Effect.succeed(false))),
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
 
-		scanForRepos: (roots: string[], maxDepth: number) => {
-			const scanDir = (
-				dir: string,
-				depth: number,
-			): Stream.Stream<ScannedRepo> =>
-				Stream.suspend(() => {
+		const scanDir = (
+			dir: string,
+			depth: number,
+			maxDepth: number,
+		): Stream.Stream<ScannedRepo> =>
+			Stream.unwrap(
+				Effect.gen(function* () {
 					if (depth > maxDepth) return Stream.empty;
 
-					let entries: Dirent[];
-					try {
-						entries = readdirSync(dir, {
-							withFileTypes: true,
-							encoding: 'utf-8',
-						});
-					} catch {
-						return Stream.empty;
+					const entries = yield* fs
+						.readDirectory(dir)
+						.pipe(
+							Effect.catchAll(() =>
+								Effect.succeed([] as string[]),
+							),
+						);
+
+					// Filter to directories only (need to check each entry)
+					const dirEntries: Array<{
+						name: string;
+						fullPath: string;
+					}> = [];
+					for (const name of entries) {
+						if (IGNORED_DIRS.has(name)) continue;
+						if (name.startsWith('.') && name !== '.git') continue;
+
+						const fullPath = path.join(dir, name);
+						const stat = yield* fs
+							.stat(fullPath)
+							.pipe(Effect.catchAll(() => Effect.succeed(null)));
+						if (stat?.type === 'Directory') {
+							dirEntries.push({ name, fullPath });
+						}
 					}
 
-					return Stream.fromIterable(entries).pipe(
-						Stream.filter(
-							(entry) =>
-								entry.isDirectory() &&
-								!IGNORED_DIRS.has(entry.name) &&
-								!(
-									entry.name.startsWith('.') &&
-									entry.name !== '.git'
+					return Stream.fromIterable(dirEntries).pipe(
+						Stream.mapEffect(({ name, fullPath }) =>
+							fs
+								.exists(path.join(fullPath, '.git'))
+								.pipe(
+									Effect.catchAll(() =>
+										Effect.succeed(false),
+									),
+								)
+								.pipe(
+									Effect.map((isRepo) => ({
+										name,
+										fullPath,
+										isRepo,
+									})),
 								),
 						),
-						Stream.map((entry) => {
-							const fullPath = join(dir, entry.name);
-							const isRepo = existsSync(join(fullPath, '.git'));
-							return { entry, fullPath, isRepo };
+						Stream.flatMap(({ name, fullPath, isRepo }) => {
+							if (isRepo) {
+								return Stream.make({ path: fullPath, name });
+							}
+							return scanDir(fullPath, depth + 1, maxDepth);
 						}),
-						Stream.flatMap(
-							({
-								entry,
-								fullPath,
-								isRepo,
-							}): Stream.Stream<ScannedRepo> => {
-								if (isRepo) {
-									return Stream.make({
-										path: fullPath,
-										name: entry.name,
-									});
-								}
-								return scanDir(fullPath, depth + 1);
-							},
-						),
 					);
-				});
+				}),
+			);
 
-			// Create streams for each root and merge them
-			const rootStreams = roots.map((root) => scanDir(root, 0));
+		return GitService.of({
+			isGitRepo: (repoPath: string) =>
+				Effect.tryPromise({
+					try: async () => {
+						const git = gitFor(repoPath);
+						return await git.checkIsRepo();
+					},
+					catch: () => false as never,
+				}).pipe(Effect.catchAll(() => Effect.succeed(false))),
 
-			return rootStreams.length > 0
-				? Stream.mergeAll(rootStreams, {
-						concurrency: rootStreams.length,
-					})
-				: Stream.empty;
-		},
+			scanForRepos: (roots: string[], maxDepth: number) => {
+				const rootStreams = roots.map((root) =>
+					scanDir(root, 0, maxDepth),
+				);
+				return rootStreams.length > 0
+					? Stream.mergeAll(rootStreams, {
+							concurrency: rootStreams.length,
+						})
+					: Stream.empty;
+			},
 
-		getRemoteUrl: (repoPath: string) =>
-			Effect.tryPromise({
-				try: async () => {
-					const git = gitFor(repoPath);
-					const remotes = await git.getRemotes(true);
-					const origin = remotes.find((r) => r.name === 'origin');
-					return origin?.refs?.fetch || null;
-				},
-				catch: (error) =>
-					new GitError({
-						message: 'Failed to get remote URL',
-						cause: error,
-					}),
-			}),
+			getRemoteUrl: (repoPath: string) =>
+				Effect.tryPromise({
+					try: async () => {
+						const git = gitFor(repoPath);
+						const remotes = await git.getRemotes(true);
+						const origin = remotes.find((r) => r.name === 'origin');
+						return origin?.refs?.fetch || null;
+					},
+					catch: (error) =>
+						new GitError({
+							message: 'Failed to get remote URL',
+							cause: error,
+						}),
+				}),
 
-		getCurrentBranch: (repoPath: string) =>
-			Effect.tryPromise({
-				try: async () => {
-					const git = gitFor(repoPath);
-					const branch = await git.revparse(['--abbrev-ref', 'HEAD']);
-					return branch.trim();
-				},
-				catch: (error) =>
-					new GitError({
-						message: 'Failed to get current branch',
-						cause: error,
-					}),
-			}),
-
-		getDefaultBranch: (repoPath: string) =>
-			Effect.tryPromise({
-				try: async () => {
-					const git = gitFor(repoPath);
-					// Try to get default branch from remote
-					try {
-						const result = await git.raw([
-							'symbolic-ref',
-							'refs/remotes/origin/HEAD',
+			getCurrentBranch: (repoPath: string) =>
+				Effect.tryPromise({
+					try: async () => {
+						const git = gitFor(repoPath);
+						const branch = await git.revparse([
+							'--abbrev-ref',
+							'HEAD',
 						]);
-						const match = result.match(
-							/refs\/remotes\/origin\/(.+)/,
+						return branch.trim();
+					},
+					catch: (error) =>
+						new GitError({
+							message: 'Failed to get current branch',
+							cause: error,
+						}),
+				}),
+
+			getDefaultBranch: (repoPath: string) =>
+				Effect.tryPromise({
+					try: async () => {
+						const git = gitFor(repoPath);
+						try {
+							const result = await git.raw([
+								'symbolic-ref',
+								'refs/remotes/origin/HEAD',
+							]);
+							const match = result.match(
+								/refs\/remotes\/origin\/(.+)/,
+							);
+							if (match) return match[1].trim();
+						} catch {
+							const branches = await git.branchLocal();
+							if (branches.all.includes('main')) return 'main';
+							if (branches.all.includes('master'))
+								return 'master';
+						}
+						return 'main';
+					},
+					catch: (error) =>
+						new GitError({
+							message: 'Failed to get default branch',
+							cause: error,
+						}),
+				}),
+
+			getInfo: (repoPath: string) =>
+				Effect.gen(function* () {
+					const git = gitFor(repoPath);
+
+					const isRepo = yield* Effect.tryPromise({
+						try: () => git.checkIsRepo(),
+						catch: () => new NotAGitRepoError({ path: repoPath }),
+					});
+
+					if (!isRepo) {
+						return yield* Effect.fail(
+							new NotAGitRepoError({ path: repoPath }),
 						);
-						if (match) return match[1].trim();
-					} catch {
-						// Fallback: check if main or master exists
-						const branches = await git.branchLocal();
-						if (branches.all.includes('main')) return 'main';
-						if (branches.all.includes('master')) return 'master';
 					}
-					return 'main'; // Default fallback
-				},
-				catch: (error) =>
-					new GitError({
-						message: 'Failed to get default branch',
-						cause: error,
-					}),
-			}),
 
-		getInfo: (repoPath: string) =>
-			Effect.gen(function* () {
-				const git = gitFor(repoPath);
-
-				const isRepo = yield* Effect.tryPromise({
-					try: () => git.checkIsRepo(),
-					catch: () =>
-						new NotAGitRepoError({
-							path: repoPath,
-						}),
-				});
-
-				if (!isRepo) {
-					return yield* Effect.fail(
-						new NotAGitRepoError({ path: repoPath }),
-					);
-				}
-
-				const [remoteUrl, currentBranch, baseBranch] =
-					yield* Effect.all([
-						Effect.tryPromise({
-							try: async () => {
-								const remotes = await git.getRemotes(true);
-								const origin = remotes.find(
-									(r) => r.name === 'origin',
-								);
-								return origin?.refs?.fetch || null;
-							},
-							catch: (error) =>
-								new GitError({
-									message: 'Failed to get remote',
-									cause: error,
-								}),
-						}),
-						Effect.tryPromise({
-							try: async () => {
-								const branch = await git.revparse([
-									'--abbrev-ref',
-									'HEAD',
-								]);
-								return branch.trim();
-							},
-							catch: (error) =>
-								new GitError({
-									message: 'Failed to get branch',
-									cause: error,
-								}),
-						}),
-						Effect.tryPromise({
-							try: async () => {
-								try {
-									const result = await git.raw([
-										'symbolic-ref',
-										'refs/remotes/origin/HEAD',
-									]);
-									const match = result.match(
-										/refs\/remotes\/origin\/(.+)/,
+					const [remoteUrl, currentBranch, baseBranch] =
+						yield* Effect.all([
+							Effect.tryPromise({
+								try: async () => {
+									const remotes = await git.getRemotes(true);
+									const origin = remotes.find(
+										(r) => r.name === 'origin',
 									);
-									if (match) return match[1].trim();
-								} catch {
-									const branches = await git.branchLocal();
-									if (branches.all.includes('main'))
-										return 'main';
-									if (branches.all.includes('master'))
-										return 'master';
-								}
-								return 'main';
-							},
-							catch: (error) =>
-								new GitError({
-									message: 'Failed to get default branch',
-									cause: error,
-								}),
-						}),
-					]);
+									return origin?.refs?.fetch || null;
+								},
+								catch: (error) =>
+									new GitError({
+										message: 'Failed to get remote',
+										cause: error,
+									}),
+							}),
+							Effect.tryPromise({
+								try: async () => {
+									const branch = await git.revparse([
+										'--abbrev-ref',
+										'HEAD',
+									]);
+									return branch.trim();
+								},
+								catch: (error) =>
+									new GitError({
+										message: 'Failed to get branch',
+										cause: error,
+									}),
+							}),
+							Effect.tryPromise({
+								try: async () => {
+									try {
+										const result = await git.raw([
+											'symbolic-ref',
+											'refs/remotes/origin/HEAD',
+										]);
+										const match = result.match(
+											/refs\/remotes\/origin\/(.+)/,
+										);
+										if (match) return match[1].trim();
+									} catch {
+										const branches =
+											await git.branchLocal();
+										if (branches.all.includes('main'))
+											return 'main';
+										if (branches.all.includes('master'))
+											return 'master';
+									}
+									return 'main';
+								},
+								catch: (error) =>
+									new GitError({
+										message: 'Failed to get default branch',
+										cause: error,
+									}),
+							}),
+						]);
 
-				return { remoteUrl, currentBranch, baseBranch };
-			}),
+					return { remoteUrl, currentBranch, baseBranch };
+				}),
 
-		getDiff: (repoPath: string, baseBranch: string) =>
-			Effect.gen(function* () {
-				const git = gitFor(repoPath);
+			getDiff: (repoPath: string, baseBranch: string) =>
+				Effect.gen(function* () {
+					const git = gitFor(repoPath);
 
-				const isRepo = yield* Effect.tryPromise({
-					try: () => git.checkIsRepo(),
-					catch: () => new NotAGitRepoError({ path: repoPath }),
-				});
+					const isRepo = yield* Effect.tryPromise({
+						try: () => git.checkIsRepo(),
+						catch: () => new NotAGitRepoError({ path: repoPath }),
+					});
 
-				if (!isRepo) {
-					return yield* Effect.fail(
-						new NotAGitRepoError({ path: repoPath }),
-					);
-				}
+					if (!isRepo) {
+						return yield* Effect.fail(
+							new NotAGitRepoError({ path: repoPath }),
+						);
+					}
 
-				// Get diff summary (--no-ext-diff bypasses external diff tools like difft)
-				const diffSummary = yield* Effect.tryPromise({
-					try: () => git.diffSummary(['--no-ext-diff', baseBranch]),
-					catch: (error) =>
-						new GitError({
-							message: 'Failed to get diff summary',
-							cause: error,
-						}),
-				});
+					// Get diff summary (--no-ext-diff bypasses external diff tools like difft)
+					const diffSummary = yield* Effect.tryPromise({
+						try: () =>
+							git.diffSummary(['--no-ext-diff', baseBranch]),
+						catch: (error) =>
+							new GitError({
+								message: 'Failed to get diff summary',
+								cause: error,
+							}),
+					});
 
-				// Get raw diff for rendering (--no-ext-diff bypasses external diff tools)
-				const rawDiff = yield* Effect.tryPromise({
-					try: () => git.diff(['--no-ext-diff', baseBranch]),
-					catch: (error) =>
-						new GitError({
-							message: 'Failed to get raw diff',
-							cause: error,
-						}),
-				});
+					// Get raw diff for rendering
+					const rawDiff = yield* Effect.tryPromise({
+						try: () => git.diff(['--no-ext-diff', baseBranch]),
+						catch: (error) =>
+							new GitError({
+								message: 'Failed to get raw diff',
+								cause: error,
+							}),
+					});
 
-				const files: DiffFile[] = diffSummary.files.map((file) => {
-					const textFile = file as DiffResultTextFile;
-					const isBinary = !('insertions' in file);
-					return {
-						path: file.file,
-						status: parseStatus(
-							isBinary
-								? 'M'
-								: textFile.insertions > 0 &&
-									  textFile.deletions === 0
-									? 'A'
-									: textFile.deletions > 0 &&
-										  textFile.insertions === 0
-										? 'D'
-										: 'M',
-						),
-						additions: isBinary ? 0 : textFile.insertions,
-						deletions: isBinary ? 0 : textFile.deletions,
-					};
-				});
+					const files: DiffFile[] = diffSummary.files.map((file) => {
+						const textFile = file as DiffResultTextFile;
+						const isBinary = !('insertions' in file);
+						return {
+							path: file.file,
+							status: parseStatus(
+								isBinary
+									? 'M'
+									: textFile.insertions > 0 &&
+										  textFile.deletions === 0
+										? 'A'
+										: textFile.deletions > 0 &&
+											  textFile.insertions === 0
+											? 'D'
+											: 'M',
+							),
+							additions: isBinary ? 0 : textFile.insertions,
+							deletions: isBinary ? 0 : textFile.deletions,
+						};
+					});
 
-				return { files, rawDiff };
-			}),
+					return { files, rawDiff };
+				}),
+		});
 	}),
-);
+).pipe(Layer.provide(NodeContext.layer));
