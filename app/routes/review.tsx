@@ -137,6 +137,7 @@ export default function Review() {
 
 	const [selectedFile, setSelectedFile] = useState<string | null>(null);
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>('split');
+	const [largeFileThreshold, setLargeFileThreshold] = useState(500);
 	const revalidator = useRevalidator();
 
 	// Poll for comment updates every 30 seconds
@@ -302,6 +303,8 @@ export default function Review() {
 				<SettingsModal
 					diffStyle={diffStyle}
 					onDiffStyleChange={setDiffStyle}
+					largeFileThreshold={largeFileThreshold}
+					onLargeFileThresholdChange={setLargeFileThreshold}
 				/>
 			}
 			leftSidebar={
@@ -336,6 +339,8 @@ export default function Review() {
 					diffStyle={diffStyle}
 					selectedFile={selectedFile}
 					sessionId={session.id}
+					files={files}
+					largeFileThreshold={largeFileThreshold}
 					existingComments={[
 						...queuedComments,
 						...stagedComments,

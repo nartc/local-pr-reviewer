@@ -40,6 +40,7 @@ import {
 } from 'react-icons/vsc';
 import { useTheme } from '../lib/theme';
 import type { Comment } from '../services/comment.service';
+import type { DiffFile } from './file-explorer';
 import { InlineCommentForm } from './inline-comment-form';
 
 // Hoisted static loading states
@@ -85,6 +86,60 @@ const FileDiffSkeleton = (
 
 // Default number of files to expand initially
 const DEFAULT_EXPANDED_COUNT = 10;
+
+// Default threshold for auto-collapsing large files (total lines changed)
+const DEFAULT_LARGE_FILE_THRESHOLD = 500;
+
+// Patterns for files that should be auto-collapsed (lock files, generated files, etc.)
+const AUTO_COLLAPSE_PATTERNS = [
+	// JavaScript/Node
+	/package-lock\.json$/,
+	/yarn\.lock$/,
+	/pnpm-lock\.yaml$/,
+	/npm-shrinkwrap\.json$/,
+	// Ruby
+	/Gemfile\.lock$/,
+	// Rust
+	/Cargo\.lock$/,
+	// PHP
+	/composer\.lock$/,
+	// Python
+	/Pipfile\.lock$/,
+	/poetry\.lock$/,
+	/pdm\.lock$/,
+	/uv\.lock$/,
+	// .NET
+	/packages\.lock\.json$/,
+	// Go
+	/go\.sum$/,
+	// Elixir
+	/mix\.lock$/,
+	// Swift/iOS
+	/Podfile\.lock$/,
+	/Package\.resolved$/,
+	// Generic lock files
+	/\.lock$/,
+	/\.lockb$/,
+];
+
+/**
+ * Check if a file should be auto-collapsed based on patterns or size
+ */
+function shouldAutoCollapseFile(
+	filePath: string,
+	totalChanges: number,
+	threshold: number,
+): boolean {
+	// Check if file matches auto-collapse patterns
+	if (AUTO_COLLAPSE_PATTERNS.some((pattern) => pattern.test(filePath))) {
+		return true;
+	}
+	// Check if file has too many changes
+	if (totalChanges > threshold) {
+		return true;
+	}
+	return false;
+}
 
 /**
  * Calculate the actual changed line range within a hunk.
@@ -222,6 +277,10 @@ interface DiffViewerProps {
 	diffStyle?: DiffStyle;
 	selectedFile?: string | null;
 	sessionId: string;
+	/** File metadata with additions/deletions for auto-collapse logic */
+	files?: DiffFile[];
+	/** Threshold for auto-collapsing files with many changes (default: 500) */
+	largeFileThreshold?: number;
 	/** Existing comments to show indicators for */
 	existingComments?: Comment[];
 	onFileVisible?: (filePath: string) => void;
@@ -301,6 +360,8 @@ function DiffViewerClient({
 	diffStyle = 'split',
 	selectedFile,
 	sessionId,
+	files = [],
+	largeFileThreshold = DEFAULT_LARGE_FILE_THRESHOLD,
 	existingComments = [],
 	onSendNow,
 	onCommentChange,
@@ -483,36 +544,70 @@ function DiffViewerClient({
 			};
 		}
 		const patches = DiffComponents.parsePatchFiles(rawDiff);
-		const files = patches.flatMap((p) => p.files || []);
+		const parsedFiles = patches.flatMap((p) => p.files || []);
 		const pathMap = new Map<string, number>();
-		files.forEach((file, index) => {
+		parsedFiles.forEach((file, index) => {
 			const path = file.name || file.prevName || `file-${index}`;
 			pathMap.set(path, index);
 		});
 		return {
 			parsedPatches: patches,
-			allFiles: files,
+			allFiles: parsedFiles,
 			filePathToIndex: pathMap,
 		};
 	}, [rawDiff, DiffComponents]);
 
+	// Build a lookup map for file metadata (additions/deletions) by path
+	const fileMetadataMap = useMemo(() => {
+		const map = new Map<string, { additions: number; deletions: number }>();
+		for (const file of files) {
+			map.set(file.path, {
+				additions: file.additions,
+				deletions: file.deletions,
+			});
+		}
+		return map;
+	}, [files]);
+
 	// Initialize expanded files on first load or when rawDiff changes
+	// Auto-collapse large files and lock files even if they're in the first 10
 	useEffect(() => {
 		if (allFiles.length > 0 && !isInitialized) {
 			const initialExpanded = new Set<string>();
+			let expandedCount = 0;
+
 			for (
 				let i = 0;
-				i < Math.min(DEFAULT_EXPANDED_COUNT, allFiles.length);
+				i < allFiles.length && expandedCount < DEFAULT_EXPANDED_COUNT;
 				i++
 			) {
 				const filePath =
 					allFiles[i].name || allFiles[i].prevName || `file-${i}`;
+
+				// Get file metadata to check total changes
+				const metadata = fileMetadataMap.get(filePath);
+				const totalChanges = metadata
+					? metadata.additions + metadata.deletions
+					: 0;
+
+				// Skip files that should be auto-collapsed
+				if (
+					shouldAutoCollapseFile(
+						filePath,
+						totalChanges,
+						largeFileThreshold,
+					)
+				) {
+					continue;
+				}
+
 				initialExpanded.add(filePath);
+				expandedCount++;
 			}
 			dispatch({ type: 'SET_EXPANDED_FILES', payload: initialExpanded });
 			dispatch({ type: 'SET_IS_INITIALIZED', payload: true });
 		}
-	}, [allFiles, isInitialized]);
+	}, [allFiles, isInitialized, fileMetadataMap, largeFileThreshold]);
 
 	// Reset state when rawDiff changes (different PR)
 	useEffect(() => {
@@ -1340,6 +1435,8 @@ export function DiffViewer({
 	diffStyle = 'split',
 	selectedFile,
 	sessionId,
+	files,
+	largeFileThreshold,
 	existingComments,
 	onSendNow,
 	onCommentChange,
@@ -1366,6 +1463,8 @@ export function DiffViewer({
 			diffStyle={diffStyle}
 			selectedFile={selectedFile}
 			sessionId={sessionId}
+			files={files}
+			largeFileThreshold={largeFileThreshold}
 			existingComments={existingComments}
 			onSendNow={onSendNow}
 			onCommentChange={onCommentChange}

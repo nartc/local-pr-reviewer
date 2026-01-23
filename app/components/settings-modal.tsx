@@ -5,6 +5,7 @@ import {
 	Kbd,
 	SegmentedControl,
 	Text,
+	TextField,
 	Tooltip,
 } from '@radix-ui/themes';
 import { useEffect, useState } from 'react';
@@ -13,25 +14,43 @@ import { useTheme } from '../lib/theme';
 
 type DiffStyle = 'split' | 'unified';
 
+// Default threshold for auto-collapsing large files
+const DEFAULT_LARGE_FILE_THRESHOLD = 500;
+
 interface SettingsModalProps {
 	diffStyle: DiffStyle;
 	onDiffStyleChange: (style: DiffStyle) => void;
+	largeFileThreshold: number;
+	onLargeFileThresholdChange: (threshold: number) => void;
 }
 
 export function SettingsModal({
 	diffStyle,
 	onDiffStyleChange,
+	largeFileThreshold,
+	onLargeFileThresholdChange,
 }: SettingsModalProps) {
 	const [open, setOpen] = useState(false);
 	const { theme, setTheme, density, setDensity } = useTheme();
 	const [localDiffStyle, setLocalDiffStyle] = useState(diffStyle);
+	const [localThreshold, setLocalThreshold] = useState(
+		String(largeFileThreshold),
+	);
 
 	useEffect(() => {
 		setLocalDiffStyle(diffStyle);
 	}, [diffStyle]);
 
+	useEffect(() => {
+		setLocalThreshold(String(largeFileThreshold));
+	}, [largeFileThreshold]);
+
 	const handleSave = () => {
 		onDiffStyleChange(localDiffStyle);
+		const parsedThreshold = parseInt(localThreshold, 10);
+		if (!isNaN(parsedThreshold) && parsedThreshold >= 0) {
+			onLargeFileThresholdChange(parsedThreshold);
+		}
 		setOpen(false);
 	};
 
@@ -127,6 +146,31 @@ export function SettingsModal({
 								Compact
 							</SegmentedControl.Item>
 						</SegmentedControl.Root>
+					</div>
+
+					{/* Large File Threshold */}
+					<div className="flex flex-col gap-3">
+						<Text
+							size="2"
+							weight="medium"
+							className="text-theme-primary"
+						>
+							Auto-collapse Threshold
+						</Text>
+						<Text size="1" className="text-theme-secondary">
+							Files with more than this many changed lines will be
+							collapsed by default. Lock files are always
+							collapsed.
+						</Text>
+						<TextField.Root
+							type="number"
+							min="0"
+							value={localThreshold}
+							onChange={(
+								e: React.ChangeEvent<HTMLInputElement>,
+							) => setLocalThreshold(e.target.value)}
+							placeholder={String(DEFAULT_LARGE_FILE_THRESHOLD)}
+						/>
 					</div>
 
 					{/* Keyboard Shortcuts */}
