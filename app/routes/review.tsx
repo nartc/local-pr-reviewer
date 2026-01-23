@@ -32,22 +32,33 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 		throw new Response('Session ID required', { status: 400 });
 	}
 
-	return runtime.runPromise(
+	// First, get the session - handle not found outside Effect
+	const sessionResult = await runtime.runPromise(
 		Effect.gen(function* () {
 			const repo = yield* RepoService;
+			return yield* repo.getSessionWithRepo(sessionId);
+		}).pipe(
+			Effect.catchTag('SessionNotFoundError', () => Effect.succeed(null)),
+			Effect.catchTag('RepoNotFoundError', () => Effect.succeed(null)),
+			Effect.catchTag('DatabaseError', () => Effect.succeed(null)),
+		),
+	);
+
+	if (!sessionResult) {
+		throw new Response('Session not found', { status: 404 });
+	}
+
+	const { session, repo: repoData } = sessionResult;
+	const repoPath = path || repoData.paths?.[0]?.path;
+
+	if (!repoPath) {
+		throw new Response('No repository path available', { status: 400 });
+	}
+
+	return runtime.runPromise(
+		Effect.gen(function* () {
 			const git = yield* GitService;
 			const comments = yield* CommentService;
-
-			const { session, repo: repoData } =
-				yield* repo.getSessionWithRepo(sessionId);
-
-			const repoPath = path || repoData.paths?.[0]?.path;
-
-			if (!repoPath) {
-				throw new Response('No repository path available', {
-					status: 400,
-				});
-			}
 
 			// Get the base branch (session override or repo default)
 			const baseBranch = session.base_branch || repoData.base_branch;
