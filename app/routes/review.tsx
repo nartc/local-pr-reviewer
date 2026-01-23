@@ -6,7 +6,7 @@ import { Link, useLoaderData, useRevalidator } from 'react-router';
 import { ClientOnly } from 'remix-utils/client-only';
 import { BaseBranchSelector } from '../components/base-branch-selector';
 import { CommentQueue } from '../components/comment-queue';
-import { DiffViewer } from '../components/diff-viewer';
+import { DiffViewer } from '../components/diff-viewer/diff-viewer';
 import { EmptyDiff } from '../components/empty-states';
 import { FileExplorer, type DiffFile } from '../components/file-explorer';
 import { Layout } from '../components/layout';
