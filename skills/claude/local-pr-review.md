@@ -86,6 +86,21 @@ Add to Claude config (`~/.claude.json`):
 
 ## Runtime Behavior
 
+### Proactive Checking (IMPORTANT)
+
+**Check for pending reviews automatically:**
+
+1. **At conversation start** - Call `check_for_pending_reviews` as one of your first actions
+2. **After completing any task** - Before asking "what's next?" or going idle, call `check_for_pending_reviews`
+3. **When user returns after being away** - Check again
+
+If pending reviews found:
+
+- Say: "You have X pending review comments for {repoName}. Want me to address them?"
+- Wait for user confirmation before proceeding
+
+### Trigger Keywords
+
 When user mentions: review, PR, pull request, comment, feedback
 
 1. Call `check_for_pending_reviews` MCP tool

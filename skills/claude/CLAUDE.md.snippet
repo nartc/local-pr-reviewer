@@ -1,8 +1,16 @@
 ## Local PR Review
 
+### Proactive Checking
+- **At conversation start**: Call `check_for_pending_reviews` MCP tool
+- **After completing a task**: Call `check_for_pending_reviews` before asking "what's next?"
+- If pending: "You have X pending review comments for {repo}. Want me to address them?"
+
+### Trigger Keywords
 When user mentions: review, PR, pull request, comment, feedback
 - Call `check_for_pending_reviews` MCP tool
 - If pending: ask user before addressing
 
-For setup: `/local-pr-review setup`
-For status: `/local-pr-review status`
+### Commands
+- `/local-pr-review setup` - First-time setup
+- `/local-pr-review update` - Check for updates
+- `/local-pr-review status` - Show current state
