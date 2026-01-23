@@ -4,7 +4,8 @@ Local PR review workflow management.
 
 ## Usage
 
-- `/local-pr-review setup` - First-time setup or verify installation
+- `/local-pr-review setup` - First-time setup or verify installation (includes update check)
+- `/local-pr-review update` - Check for updates and rebuild if needed
 - `/local-pr-review start` - Start webapp if not running
 - `/local-pr-review check` - Check for pending reviews
 - `/local-pr-review status` - Show current state (webapp running, port, pending counts)
@@ -16,7 +17,26 @@ Local PR review workflow management.
 
 - Config: `~/.config/local-pr-reviewer/config.json`
 - If missing: run full setup
-- If exists: verify and start if needed
+- If exists: verify installation, check for updates, start if needed
+
+### Check for Updates
+
+When config exists, check if there are updates available:
+
+```bash
+cd {installPath}
+git fetch origin main
+git status -uno
+```
+
+If output contains "behind":
+
+1. Pull latest: `git pull origin main`
+2. Rebuild: `pnpm install && pnpm build`
+3. If webapp running, restart it
+4. Tell user: "Updated local-pr-reviewer to latest version"
+
+If already up to date, continue silently.
 
 ### First-Time Setup
 
