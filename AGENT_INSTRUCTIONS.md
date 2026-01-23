@@ -134,9 +134,8 @@ Before modifying, detect existing config file:
 
 **Claude Code:**
 
-1. Check `~/.claude/settings.json` exists? Use it
-2. Else check `~/.claude.json` exists? Use it
-3. Else create `~/.claude.json`
+1. Check `~/.claude.json` exists? Use it
+2. Else create `~/.claude.json`
 
 **OpenCode:**
 

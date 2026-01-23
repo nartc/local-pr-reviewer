@@ -51,7 +51,7 @@ If `pnpm build` fails:
 
 ### MCP Configuration
 
-Add to Claude config (`~/.claude/settings.json` or `~/.claude.json`):
+Add to Claude config (`~/.claude.json`):
 
 ```json
 {
@@ -76,7 +76,7 @@ When user mentions: review, PR, pull request, comment, feedback
 
 If you don't see `check_for_pending_reviews` or other `local-pr-reviewer` tools:
 
-1. **Check if MCP is configured**: Read `~/.claude/settings.json` and look for `local-pr-reviewer` in `mcpServers`
+1. **Check if MCP is configured**: Read `~/.claude.json` and look for `local-pr-reviewer` or `pr-reviewer` in `mcpServers`
 2. **If not configured**: The user needs to run `/local-pr-review setup` first
 3. **If configured but not working**:
     - Verify the path exists: `ls {installPath}/dist/mcp-server/index.js`
