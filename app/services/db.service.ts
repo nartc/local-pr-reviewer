@@ -1,8 +1,7 @@
-import { FileSystem } from '@effect/platform';
-import { NodeFileSystem } from '@effect/platform-node';
+import { FileSystem, Path } from '@effect/platform';
+import { NodeContext } from '@effect/platform-node';
 import Database from 'better-sqlite3';
 import { Context, Effect, Layer } from 'effect';
-import { join } from 'path';
 import { DatabaseError } from '../lib/errors';
 
 // Database service interface
@@ -15,60 +14,6 @@ export interface DbService {
 
 export const DbService = Context.GenericTag<DbService>('DbService');
 
-// Database file path
-const DB_PATH = join(process.cwd(), 'db', 'pr-reviewer.db');
-const DB_DIR = join(process.cwd(), 'db');
-
-// Create database connection
-const createDatabase = (): Database.Database => {
-	const db = new Database(DB_PATH);
-	db.pragma('journal_mode = WAL');
-	db.pragma('foreign_keys = ON');
-	return db;
-};
-
-// Run schema and migrations using Effect FileSystem
-const runMigrations = (db: Database.Database) =>
-	Effect.gen(function* () {
-		const fs = yield* FileSystem.FileSystem;
-
-		// Run base schema
-		const schemaPath = join(DB_DIR, 'schema.sql');
-		const schema = yield* fs.readFileString(schemaPath);
-		db.exec(schema);
-
-		// Run migrations
-		const migrationsDir = join(DB_DIR, 'migrations');
-		const exists = yield* fs.exists(migrationsDir);
-
-		if (exists) {
-			const entries = yield* fs.readDirectory(migrationsDir);
-			const migrations = entries.filter((f) => f.endsWith('.sql')).sort();
-
-			for (const migration of migrations) {
-				const migrationPath = join(migrationsDir, migration);
-				const sql = yield* fs.readFileString(migrationPath);
-				try {
-					db.exec(sql);
-				} catch (error) {
-					// Ignore "duplicate column" or "already exists" errors
-					const message =
-						error instanceof Error ? error.message : String(error);
-					if (
-						!message.includes('duplicate column') &&
-						!message.includes('already exists')
-					) {
-						yield* Effect.logWarning(
-							`Migration ${migration} failed: ${message}`,
-						);
-					}
-				}
-			}
-		}
-
-		return db;
-	});
-
 // Singleton database instance
 let dbInstance: Database.Database | null = null;
 
@@ -76,9 +21,56 @@ let dbInstance: Database.Database | null = null;
 export const DbServiceLive = Layer.effect(
 	DbService,
 	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+
+		const dbDir = path.join(process.cwd(), 'db');
+		const dbPath = path.join(dbDir, 'pr-reviewer.db');
+
 		if (!dbInstance) {
-			dbInstance = createDatabase();
-			yield* runMigrations(dbInstance);
+			// Create database connection
+			dbInstance = new Database(dbPath);
+			dbInstance.pragma('journal_mode = WAL');
+			dbInstance.pragma('foreign_keys = ON');
+
+			// Run base schema
+			const schemaPath = path.join(dbDir, 'schema.sql');
+			const schema = yield* fs.readFileString(schemaPath);
+			dbInstance.exec(schema);
+
+			// Run migrations
+			const migrationsDir = path.join(dbDir, 'migrations');
+			const exists = yield* fs.exists(migrationsDir);
+
+			if (exists) {
+				const entries = yield* fs.readDirectory(migrationsDir);
+				const migrations = entries
+					.filter((f) => f.endsWith('.sql'))
+					.sort();
+
+				for (const migration of migrations) {
+					const migrationPath = path.join(migrationsDir, migration);
+					const sql = yield* fs.readFileString(migrationPath);
+					try {
+						dbInstance.exec(sql);
+					} catch (error) {
+						// Ignore "duplicate column" or "already exists" errors
+						const message =
+							error instanceof Error
+								? error.message
+								: String(error);
+						if (
+							!message.includes('duplicate column') &&
+							!message.includes('already exists')
+						) {
+							yield* Effect.logWarning(
+								`Migration ${migration} failed: ${message}`,
+							);
+						}
+					}
+				}
+			}
+
 			yield* Effect.logDebug('Database initialized with migrations');
 		}
 
@@ -98,7 +90,7 @@ export const DbServiceLive = Layer.effect(
 				}),
 		});
 	}),
-).pipe(Layer.provide(NodeFileSystem.layer));
+).pipe(Layer.provide(NodeContext.layer));
 
 // Helper functions for common operations
 export const query = <T>(
