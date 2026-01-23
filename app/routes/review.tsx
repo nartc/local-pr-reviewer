@@ -1,8 +1,9 @@
-import { Separator, Text } from '@radix-ui/themes';
+import { Separator, Spinner, Text } from '@radix-ui/themes';
 import { Effect } from 'effect';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { VscArrowLeft } from 'react-icons/vsc';
 import { Link, useLoaderData, useRevalidator } from 'react-router';
+import { ClientOnly } from 'remix-utils/client-only';
 import { BaseBranchSelector } from '../components/base-branch-selector';
 import { CommentQueue } from '../components/comment-queue';
 import { DiffViewer } from '../components/diff-viewer';
@@ -333,23 +334,36 @@ export default function Review() {
 					baseBranch={baseBranch}
 				/>
 			) : (
-				<DiffViewer
-					rawDiff={rawDiff}
-					className="h-full"
-					diffStyle={diffStyle}
-					selectedFile={selectedFile}
-					sessionId={session.id}
-					files={files}
-					largeFileThreshold={largeFileThreshold}
-					existingComments={[
-						...queuedComments,
-						...stagedComments,
-						...sentComments,
-					]}
-					onSendNow={handleSendNowFromDiff}
-					scrollToFileRef={scrollToFileRef}
-					onCommentChange={revalidator.revalidate}
-				/>
+				<ClientOnly
+					fallback={
+						<div className="flex items-center justify-center h-full gap-2">
+							<Spinner size="2" />
+							<Text size="2" color="gray">
+								Loading diff...
+							</Text>
+						</div>
+					}
+				>
+					{() => (
+						<DiffViewer
+							rawDiff={rawDiff}
+							className="h-full"
+							diffStyle={diffStyle}
+							selectedFile={selectedFile}
+							sessionId={session.id}
+							files={files}
+							largeFileThreshold={largeFileThreshold}
+							existingComments={[
+								...queuedComments,
+								...stagedComments,
+								...sentComments,
+							]}
+							onSendNow={handleSendNowFromDiff}
+							scrollToFileRef={scrollToFileRef}
+							onCommentChange={revalidator.revalidate}
+						/>
+					)}
+				</ClientOnly>
 			)}
 		</Layout>
 	);

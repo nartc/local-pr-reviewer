@@ -43,47 +43,6 @@ import type { Comment } from '../services/comment.service';
 import type { DiffFile } from './file-explorer';
 import { InlineCommentForm } from './inline-comment-form';
 
-// Hoisted static loading states
-const DiffLoadingState = (
-	<div className="flex items-center justify-center h-full gap-2">
-		<Spinner size="2" />
-		<Text size="2" color="gray">
-			Loading diff viewer...
-		</Text>
-	</div>
-);
-
-const NoDiffState = (
-	<div className="flex items-center justify-center h-full">
-		<Text size="2" color="gray">
-			No changes to display
-		</Text>
-	</div>
-);
-
-const HydrationLoadingState = (
-	<div className="flex items-center justify-center h-full gap-2">
-		<Spinner size="2" />
-		<Text size="2" color="gray">
-			Loading diff...
-		</Text>
-	</div>
-);
-
-// Skeleton for FileDiff while it's mounting
-const FileDiffSkeleton = (
-	<div className="p-4 space-y-3">
-		<div className="h-4 w-3/4 rounded animate-pulse bg-theme-surface-hover" />
-		<div className="h-4 w-full rounded animate-pulse bg-theme-surface-hover" />
-		<div className="h-4 w-5/6 rounded animate-pulse bg-theme-surface-hover" />
-		<div className="h-4 w-full rounded animate-pulse bg-theme-surface-hover" />
-		<div className="h-4 w-2/3 rounded animate-pulse bg-theme-surface-hover" />
-		<div className="h-4 w-full rounded animate-pulse bg-theme-surface-hover" />
-		<div className="h-4 w-4/5 rounded animate-pulse bg-theme-surface-hover" />
-		<div className="h-4 w-full rounded animate-pulse bg-theme-surface-hover" />
-	</div>
-);
-
 // Default number of files to expand initially
 const DEFAULT_EXPANDED_COUNT = 10;
 
@@ -661,7 +620,14 @@ function DiffViewerClient({
 	}, []);
 
 	if (!DiffComponents) {
-		return DiffLoadingState;
+		return (
+			<div className="flex items-center justify-center h-full gap-2">
+				<Spinner size="2" />
+				<Text size="2" color="gray">
+					Loading diff viewer...
+				</Text>
+			</div>
+		);
 	}
 
 	const { FileDiff, defaultDiffOptions } = DiffComponents;
@@ -814,7 +780,18 @@ function DiffViewerClient({
 									)}
 
 									{/* Show skeleton while FileDiff is loading */}
-									{!isLoaded && FileDiffSkeleton}
+									{!isLoaded && (
+										<div className="p-4 space-y-3">
+											<div className="h-4 w-3/4 rounded animate-pulse bg-theme-surface-hover" />
+											<div className="h-4 w-full rounded animate-pulse bg-theme-surface-hover" />
+											<div className="h-4 w-5/6 rounded animate-pulse bg-theme-surface-hover" />
+											<div className="h-4 w-full rounded animate-pulse bg-theme-surface-hover" />
+											<div className="h-4 w-2/3 rounded animate-pulse bg-theme-surface-hover" />
+											<div className="h-4 w-full rounded animate-pulse bg-theme-surface-hover" />
+											<div className="h-4 w-4/5 rounded animate-pulse bg-theme-surface-hover" />
+											<div className="h-4 w-full rounded animate-pulse bg-theme-surface-hover" />
+										</div>
+									)}
 
 									<div
 										style={{
@@ -1442,18 +1419,14 @@ export function DiffViewer({
 	onCommentChange,
 	scrollToFileRef,
 }: DiffViewerProps) {
-	const [isClient, setIsClient] = useState(false);
-
-	useEffect(() => {
-		setIsClient(true);
-	}, []);
-
 	if (!rawDiff) {
-		return NoDiffState;
-	}
-
-	if (!isClient) {
-		return HydrationLoadingState;
+		return (
+			<div className="flex items-center justify-center h-full">
+				<Text size="2" color="gray">
+					No changes to display
+				</Text>
+			</div>
+		);
 	}
 
 	return (
