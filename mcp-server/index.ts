@@ -2,6 +2,7 @@
 // PR Reviewer MCP Server
 // Provides tools for coding agents to receive and manage PR review comments
 
+import { NodeContext } from '@effect/platform-node';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { Effect, Layer, Logger, LogLevel, ManagedRuntime } from 'effect';
@@ -37,6 +38,7 @@ const LoggingLive = Layer.mergeAll(
 const AppLayer = DbServiceLive.pipe(
 	Layer.provideMerge(McpConfigLive),
 	Layer.provide(LoggingLive),
+	Layer.provide(NodeContext.layer),
 );
 
 // Runtime instance

@@ -1,11 +1,12 @@
 // Effect-based configuration for MCP server
 // No process.env access in implementation code - all env access goes through here
 
+import { Path } from '@effect/platform';
 import { Config, ConfigError, Context, Effect, Layer } from 'effect';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// ES module equivalent of __dirname
+// ES module equivalent of __dirname - must be computed at module load time
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -40,24 +41,26 @@ const detectClientName: Effect.Effect<string, ConfigError.ConfigError> =
 	});
 
 // Build possible DB paths based on working directory
-const buildDbPaths = (cwd: string): readonly string[] =>
+const buildDbPaths = (path: Path.Path, cwd: string): readonly string[] =>
 	[
-		join(cwd, 'db', 'pr-reviewer.db'),
+		path.join(cwd, 'db', 'pr-reviewer.db'),
 		// Fallback paths for when MCP server runs from different locations
-		join(__dirname, '..', '..', '..', 'db', 'pr-reviewer.db'),
-		join(__dirname, '..', '..', 'db', 'pr-reviewer.db'),
+		path.join(__dirname, '..', '..', '..', 'db', 'pr-reviewer.db'),
+		path.join(__dirname, '..', '..', 'db', 'pr-reviewer.db'),
 	] as const;
 
 // Create config from environment
-const makeConfig: Effect.Effect<McpConfig, ConfigError.ConfigError> =
+const makeConfig: Effect.Effect<McpConfig, ConfigError.ConfigError, Path.Path> =
 	Effect.gen(function* () {
+		const path = yield* Path.Path;
+
 		// CWD config - use PWD env var or fallback to process.cwd() via sync
 		const workingDir = yield* Config.string('PWD').pipe(
 			Config.orElse(() => Config.succeed(process.cwd())),
 		);
 
 		const clientName = yield* detectClientName;
-		const dbPaths = buildDbPaths(workingDir);
+		const dbPaths = buildDbPaths(path, workingDir);
 
 		return {
 			workingDir,
@@ -68,6 +71,7 @@ const makeConfig: Effect.Effect<McpConfig, ConfigError.ConfigError> =
 
 // Live layer - reads from environment once at startup
 // Config errors are converted to defects (will crash on startup if config is invalid)
+// Requires Path service to be provided
 export const McpConfigLive = Layer.effect(
 	McpConfig,
 	makeConfig.pipe(

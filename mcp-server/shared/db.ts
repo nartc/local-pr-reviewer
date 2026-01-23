@@ -1,8 +1,7 @@
 // Database service for MCP server using Effect
+import { FileSystem, Path } from '@effect/platform';
 import Database from 'better-sqlite3';
 import { Context, Data, Effect, Layer } from 'effect';
-import { existsSync, readFileSync, readdirSync } from 'fs';
-import { join } from 'path';
 import { McpConfig } from './config.js';
 
 // Errors
@@ -27,50 +26,6 @@ export class CommentNotFoundError extends Data.TaggedError(
 	id: string;
 }> {}
 
-// Find DB path from config paths
-const findDbPath = (dbPaths: readonly string[]): string => {
-	for (const path of dbPaths) {
-		if (existsSync(path)) {
-			return path;
-		}
-	}
-	// Return first path as default (will be created if doesn't exist)
-	return dbPaths[0];
-};
-
-// Run migrations
-const runMigrations = (db: Database.Database, dbDir: string): void => {
-	const schemaPath = join(dbDir, 'schema.sql');
-	if (existsSync(schemaPath)) {
-		const schema = readFileSync(schemaPath, 'utf-8');
-		db.exec(schema);
-	}
-
-	const migrationsDir = join(dbDir, 'migrations');
-	if (existsSync(migrationsDir)) {
-		const migrations = readdirSync(migrationsDir)
-			.filter((f) => f.endsWith('.sql'))
-			.sort();
-
-		for (const migration of migrations) {
-			const migrationPath = join(migrationsDir, migration);
-			try {
-				const sql = readFileSync(migrationPath, 'utf-8');
-				db.exec(sql);
-			} catch (error) {
-				const message =
-					error instanceof Error ? error.message : String(error);
-				if (
-					!message.includes('duplicate column') &&
-					!message.includes('already exists')
-				) {
-					console.error(`Migration ${migration} failed:`, message);
-				}
-			}
-		}
-	}
-};
-
 // Service interface
 export interface DbService {
 	readonly query: <T>(
@@ -88,20 +43,6 @@ export interface DbService {
 }
 
 export const DbService = Context.GenericTag<DbService>('McpDbService');
-
-// Initialize database with given paths
-const initializeDb = (dbPaths: readonly string[]): Database.Database => {
-	const dbPath = findDbPath(dbPaths);
-	const dbDir = join(dbPath, '..');
-
-	const db = new Database(dbPath);
-	db.pragma('journal_mode = WAL');
-	db.pragma('foreign_keys = ON');
-
-	runMigrations(db, dbDir);
-
-	return db;
-};
 
 // Create DbService implementation with a database instance
 const makeDbService = (db: Database.Database): DbService => ({
@@ -141,16 +82,66 @@ const makeDbService = (db: Database.Database): DbService => ({
 		}).pipe(Effect.withSpan('db.execute', { attributes: { sql } })),
 });
 
-// Live layer - depends on McpConfig
+// Live layer - depends on McpConfig, FileSystem, and Path
 export const DbServiceLive = Layer.effect(
 	DbService,
 	Effect.gen(function* () {
 		const config = yield* McpConfig;
-		const db = initializeDb(config.dbPaths);
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
 
-		yield* Effect.logInfo('Database initialized', {
-			path: findDbPath(config.dbPaths),
-		});
+		// Find first existing DB path or use first as default
+		let dbPath = config.dbPaths[0];
+		for (const candidatePath of config.dbPaths) {
+			const exists = yield* fs.exists(candidatePath);
+			if (exists) {
+				dbPath = candidatePath;
+				break;
+			}
+		}
+
+		const dbDir = path.dirname(dbPath);
+
+		const db = new Database(dbPath);
+		db.pragma('journal_mode = WAL');
+		db.pragma('foreign_keys = ON');
+
+		// Run base schema
+		const schemaPath = path.join(dbDir, 'schema.sql');
+		const schemaExists = yield* fs.exists(schemaPath);
+		if (schemaExists) {
+			const schema = yield* fs.readFileString(schemaPath);
+			db.exec(schema);
+		}
+
+		// Run migrations
+		const migrationsDir = path.join(dbDir, 'migrations');
+		const migrationsDirExists = yield* fs.exists(migrationsDir);
+		if (migrationsDirExists) {
+			const entries = yield* fs.readDirectory(migrationsDir);
+			const migrations = entries.filter((f) => f.endsWith('.sql')).sort();
+
+			for (const migration of migrations) {
+				const migrationPath = path.join(migrationsDir, migration);
+				const sql = yield* fs.readFileString(migrationPath);
+				try {
+					db.exec(sql);
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					if (
+						!message.includes('duplicate column') &&
+						!message.includes('already exists')
+					) {
+						yield* Effect.logWarning(
+							`Migration ${migration} failed: ${message}`,
+						);
+					}
+				}
+			}
+		}
+
+		yield* Effect.logInfo('Database initialized', { path: dbPath });
 
 		return makeDbService(db);
 	}),
