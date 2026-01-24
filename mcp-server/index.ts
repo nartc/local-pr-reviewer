@@ -15,6 +15,8 @@ import { getDetails } from './tools/get-details.js';
 import { listPending } from './tools/list-pending.js';
 import { listRepoPending } from './tools/list-repo-pending.js';
 import { markResolved } from './tools/mark-resolved.js';
+import { getServerStatus } from './tools/server-status.js';
+import { startServer } from './tools/start-server.js';
 
 // Logging layer - stderr for MCP (stdout is reserved for protocol)
 const LoggingLive = Layer.mergeAll(
@@ -289,6 +291,57 @@ server.tool(
 			),
 			Effect.withSpan('mcp.tool.get_comment_details'),
 		);
+
+		const result = await runtime.runPromise(program);
+		return { content: [{ type: 'text' as const, text: result }] };
+	},
+);
+
+server.tool(
+	'start_review_server',
+	'Start the review web server and get the URL for the current repository. Use this when you want to review code changes.',
+	{
+		repo_path: z
+			.string()
+			.optional()
+			.describe(
+				'Optional: Repository path (auto-detected from cwd if not provided)',
+			),
+	},
+	async ({ repo_path }) => {
+		const program = Effect.gen(function* () {
+			yield* getOrCreateClient;
+			return yield* startServer({ repo_path });
+		}).pipe(
+			Effect.catchAll((error: Error) =>
+				Effect.gen(function* () {
+					const message = error.message || String(error);
+					yield* Effect.logError('Tool error').pipe(
+						Effect.annotateLogs({
+							tool: 'start_review_server',
+							error: message,
+						}),
+					);
+					return `Error: ${message}`;
+				}),
+			),
+			Effect.withSpan('mcp.tool.start_review_server'),
+		);
+
+		const result = await runtime.runPromise(program);
+		return { content: [{ type: 'text' as const, text: result }] };
+	},
+);
+
+server.tool(
+	'get_server_status',
+	'Check if the review server is running and get its URL and status.',
+	{},
+	async () => {
+		const program = Effect.gen(function* () {
+			yield* getOrCreateClient;
+			return yield* getServerStatus();
+		}).pipe(Effect.withSpan('mcp.tool.get_server_status'));
 
 		const result = await runtime.runPromise(program);
 		return { content: [{ type: 'text' as const, text: result }] };

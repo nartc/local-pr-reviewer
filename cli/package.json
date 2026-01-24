@@ -1,0 +1,29 @@
+{
+	"name": "local-pr-reviewer",
+	"version": "1.0.0",
+	"description": "CLI for setting up and managing local-pr-reviewer",
+	"author": "Chau Tran <nartc7789@gmail.com>",
+	"license": "MIT",
+	"type": "module",
+	"bin": {
+		"local-pr-reviewer": "./bin/cli.js"
+	},
+	"files": [
+		"bin",
+		"dist",
+		"artifacts",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch"
+	},
+	"dependencies": {
+		"@clack/prompts": "^0.10.0",
+		"picocolors": "^1.1.1"
+	},
+	"devDependencies": {
+		"@types/node": "^22",
+		"typescript": "^5.9.2"
+	}
+}

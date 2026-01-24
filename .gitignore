@@ -14,3 +14,8 @@
 /db/*.db-shm
 /db/*.db-wal
 
+# CLI artifacts (generated during build)
+/cli/artifacts/
+/cli/dist/
+/cli/node_modules/
+
