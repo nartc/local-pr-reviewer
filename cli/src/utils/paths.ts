@@ -64,6 +64,13 @@ export function getServerJsPath(): string {
 }
 
 /**
+ * Get path to server log file
+ */
+export function getServerLogPath(): string {
+	return join(getConfigDir(), 'server.log');
+}
+
+/**
  * Get path to build directory
  */
 export function getBuildDir(): string {

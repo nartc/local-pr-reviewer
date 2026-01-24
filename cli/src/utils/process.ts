@@ -1,9 +1,20 @@
 // Process management for local-pr-reviewer server
 
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	openSync,
+	readFileSync,
+	unlinkSync,
+	writeFileSync,
+} from 'node:fs';
 import { createServer } from 'node:net';
-import { getConfigDir, getServerJsonPath, getServerJsPath } from './paths.js';
+import {
+	getConfigDir,
+	getServerJsonPath,
+	getServerJsPath,
+	getServerLogPath,
+} from './paths.js';
 
 export interface ServerInfo {
 	port: number;
@@ -127,6 +138,10 @@ export async function startServer(): Promise<ServerInfo> {
 
 	const port = await findAvailablePort();
 
+	// Open log file for stdout/stderr
+	const logPath = getServerLogPath();
+	const logFd = openSync(logPath, 'a');
+
 	const child = spawn('node', [serverJsPath], {
 		cwd: configDir,
 		env: {
@@ -135,7 +150,7 @@ export async function startServer(): Promise<ServerInfo> {
 			NODE_ENV: 'production',
 		},
 		detached: true,
-		stdio: 'ignore',
+		stdio: ['ignore', logFd, logFd],
 	});
 
 	child.unref();

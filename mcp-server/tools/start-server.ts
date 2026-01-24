@@ -3,7 +3,7 @@
 
 import { Effect } from 'effect';
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -40,6 +40,13 @@ function getServerJsonPath(): string {
  */
 function getServerJsPath(): string {
 	return join(getConfigDir(), 'server.js');
+}
+
+/**
+ * Get path to server.log
+ */
+function getServerLogPath(): string {
+	return join(getConfigDir(), 'server.log');
 }
 
 /**
@@ -122,6 +129,10 @@ async function getOrStartServer(): Promise<ServerInfo> {
 
 	const port = await findAvailablePort();
 
+	// Open log file for stdout/stderr
+	const logPath = getServerLogPath();
+	const logFd = openSync(logPath, 'a');
+
 	const child = spawn('node', [serverJsPath], {
 		cwd: configDir,
 		env: {
@@ -130,7 +141,7 @@ async function getOrStartServer(): Promise<ServerInfo> {
 			NODE_ENV: 'production',
 		},
 		detached: true,
-		stdio: 'ignore',
+		stdio: ['ignore', logFd, logFd],
 	});
 
 	child.unref();
