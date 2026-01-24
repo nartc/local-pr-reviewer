@@ -58,7 +58,9 @@ export async function loader({ request }: Route.LoaderArgs) {
 	);
 
 	// Check signal file status
-	const signalStatus = checkSignalFileStatus(repoPath);
+	const signalStatus = await runtime.runPromise(
+		checkSignalFileStatus(repoPath),
+	);
 
 	// If signal file exists or auto-confirm is enabled, redirect to review
 	if (signalStatus.exists || signalStatus.autoConfirm) {

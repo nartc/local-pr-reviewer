@@ -1,6 +1,8 @@
 import { Effect } from 'effect';
 import { runtime } from '../lib/effect-runtime';
+import { updateSignalFile } from '../lib/signal-file.server';
 import { CommentService, type Comment } from '../services/comment.service';
+import { RepoService } from '../services/repo.service';
 import type { Route } from './+types/api.send';
 
 export async function action({ request }: Route.ActionArgs) {
@@ -55,7 +57,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 						if (result?.repo.paths) {
 							for (const repoPath of result.repo.paths) {
-								updateSignalFile(repoPath.path);
+								yield* updateSignalFile(repoPath.path);
 							}
 						}
 					}

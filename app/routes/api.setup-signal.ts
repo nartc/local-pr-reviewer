@@ -1,10 +1,14 @@
 // API route for setting up signal file in a repository
 
+import { NodeContext } from '@effect/platform-node';
+import { Effect } from 'effect';
 import {
 	checkSignalFileStatus,
 	createSignalFile,
 } from '../lib/signal-file.server';
 import type { Route } from './+types/api.setup-signal';
+
+const signalRuntime = Effect.runPromise;
 
 export async function action({ request }: Route.ActionArgs) {
 	const formData = await request.formData();
@@ -18,7 +22,11 @@ export async function action({ request }: Route.ActionArgs) {
 		);
 	}
 
-	const result = createSignalFile(repoPath, remember);
+	const result = await signalRuntime(
+		createSignalFile(repoPath, remember).pipe(
+			Effect.provide(NodeContext.layer),
+		),
+	);
 
 	if (!result.success) {
 		return Response.json(
@@ -46,6 +54,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 		);
 	}
 
-	const status = checkSignalFileStatus(repoPath);
+	const status = await signalRuntime(
+		checkSignalFileStatus(repoPath).pipe(Effect.provide(NodeContext.layer)),
+	);
 	return Response.json(status);
 }
