@@ -1,6 +1,6 @@
 {
 	"name": "pr-reviewer",
-	"version": "2.1.0",
+	"version": "2.1.1",
 	"description": "Local PR review tool that sends AI-processed feedback to MCP-compatible coding agents",
 	"author": "Chau Tran <nartc7789@gmail.com>",
 	"license": "MIT",
