@@ -6,7 +6,11 @@ import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import color from 'picocolors';
 import { getAgentForProject, isGitRepo } from '../utils/migration.js';
-import { ensureServerRunning } from '../utils/server.js';
+import {
+	getRunningServer,
+	getServerUrl,
+	startServer,
+} from '../utils/process.js';
 
 interface LoopOptions {
 	agent?: string;
@@ -44,17 +48,19 @@ export async function loop(options: LoopOptions = {}): Promise<void> {
 	}
 
 	// Ensure server is running
-	let serverUrl: string;
-	try {
-		serverUrl = await ensureServerRunning();
-	} catch (error) {
-		console.error(color.red('Error: Could not start review server.'));
-		console.log('Try running `npx local-pr-reviewer setup` first.');
-		process.exit(1);
+	let serverInfo = getRunningServer();
+	if (!serverInfo) {
+		try {
+			serverInfo = await startServer();
+		} catch (error) {
+			console.error(color.red('Error: Could not start review server.'));
+			console.log('Try running `npx local-pr-reviewer setup` first.');
+			process.exit(1);
+		}
 	}
 
 	const repoName = basename(cwd);
-	const webUrl = `${serverUrl}/review/${encodeURIComponent(repoName)}`;
+	const webUrl = `${getServerUrl(serverInfo)}/review/${encodeURIComponent(repoName)}`;
 
 	// Show intro and confirm
 	p.intro(color.bgCyan(color.black(' local-pr-reviewer ')));
